@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>通信网络拓扑图</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0f172a; font-family: "Microsoft YaHei", sans-serif; overflow: hidden; }
+    #toolbar {
+      height: 48px; background: #16213e; display: flex; align-items: center;
+      padding: 0 20px; gap: 16px; border-bottom: 1px solid #1e3a5f;
+    }
+    #toolbar h3 { color: #38bdf8; font-size: 16px; }
+    #toolbar span { color: #64748b; font-size: 13px; }
+    svg { display: block; }
+    #legend {
+      position: fixed; left: 16px; bottom: 16px;
+      background: #0f172aee; border: 1px solid #1e3a5f; border-radius: 8px;
+      padding: 12px 14px; z-index: 10; font-size: 12px; color: #cbd5e1;
+      pointer-events: none; user-select: none;
+    }
+    #legend h4 { color: #94a3b8; font-size: 11px; margin-bottom: 6px; }
+    #legend .row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+    #legend .row svg { flex-shrink: 0; }
+    #legend .sep { border-top: 1px solid #1e293b; margin: 8px 0; }
+  </style>
+</head>
+<body>
+  <div id="toolbar">
+    <h3>通信网络拓扑图</h3>
+    <span>滚轮缩放 | 空白处平移</span>
+  </div>
+  <svg id="canvas"></svg>
+  <div id="legend"></div>
+
+  <script>
+    const NS = 'http://www.w3.org/2000/svg';
+    function el(tag, attrs = {}, parent = null) {
+      const e = document.createElementNS(NS, tag);
+      for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+      if (parent) parent.appendChild(e);
+      return e;
+    }
+    function txt(content, attrs = {}, parent = null) {
+      const t = el('text', attrs, parent);
+      t.textContent = content;
+      return t;
+    }
+
+    const icons = { terminal: '💻', 'comm-device': '📡', router: '🔀' };
+
+    // ===== 数据定义 =====
+    const groups = [
+      {
+        id: 'dazhou', name: '大洲岛有线通信网', color: '#38bdf8',
+        cx: 360, cy: 400, r: 200,
+        subs: [
+          {
+            name: '大洲岛1号通信站', cx: 360, cy: 300, r: 70,
+            nodes: [
+              { id: 'dz-term', name: '终端', icon: 'terminal', ox: 0, oy: -20, r: 15 },
+              { id: 'dz-comm', name: '通信机', icon: 'comm-device', ox: 0, oy: 24, r: 17 },
+            ],
+            links: [['dz-term', 'dz-comm']],
+          },
+          {
+            name: '岛上核心路由站点', cx: 360, cy: 510, r: 42,
+            nodes: [
+              { id: 'dz-route', name: '路由器', icon: 'router', ox: 0, oy: 0, r: 18 },
+            ],
+            links: [],
+          },
+        ],
+        subLinks: [['dz-comm', 'dz-route']],
+      },
+      {
+        id: 'sea', name: '海上有线路由站点', color: '#22d3ee',
+        cx: 1000, cy: 350, r: 60,
+        subs: [],
+        nodes: [
+          { id: 'sea-route', name: '路由器', icon: 'router', ox: 0, oy: 0, r: 20 },
+        ],
+      },
+      {
+        id: 'hainan', name: '海南岛有线通信网', color: '#38bdf8',
+        cx: 1640, cy: 400, r: 220,
+        subs: [
+          {
+            name: '海南岛1号通信站', cx: 1550, cy: 300, r: 70,
+            nodes: [
+              { id: 'hn1-term', name: '终端', icon: 'terminal', ox: 0, oy: -20, r: 15 },
+              { id: 'hn1-comm', name: '通信机', icon: 'comm-device', ox: 0, oy: 24, r: 17 },
+            ],
+            links: [['hn1-term', 'hn1-comm']],
+          },
+          {
+            name: '海南岛2号通信站', cx: 1730, cy: 300, r: 70,
+            nodes: [
+              { id: 'hn2-term', name: '终端', icon: 'terminal', ox: 0, oy: -20, r: 15 },
+              { id: 'hn2-comm', name: '通信机', icon: 'comm-device', ox: 0, oy: 24, r: 17 },
+            ],
+            links: [['hn2-term', 'hn2-comm']],
+          },
+          {
+            name: '岛上核心路由站点', cx: 1640, cy: 520, r: 42,
+            nodes: [
+              { id: 'hn-route', name: '路由器', icon: 'router', ox: 0, oy: 0, r: 18 },
+            ],
+            links: [],
+          },
+        ],
+        subLinks: [['hn1-comm', 'hn-route'], ['hn2-comm', 'hn-route']],
+      },
+      {
+        id: 'ship', name: '1号邮轮（内部通信网）', color: '#06b6d4',
+        cx: 1000, cy: 830, r: 105,
+        subs: [],
+        nodes: [
+          { id: 'ship-term', name: '终端', icon: 'terminal', ox: -38, oy: 0, r: 15 },
+          { id: 'ship-comm', name: '通信机', icon: 'comm-device', ox: 38, oy: 0, r: 17 },
+        ],
+        internalLinks: [['ship-term', 'ship-comm']],
+      },
+    ];
+
+    // 外部有线链路
+    const wiredLinks = [
+      { source: 'dz-route', target: 'sea-route' },
+      { source: 'hn-route', target: 'sea-route' },
+    ];
+
+    // 超短波无线链路（邮轮通信机 → 各岛通信机）
+    const wirelessLinks = [
+      { source: 'ship-comm', target: 'dz-comm' },
+      { source: 'ship-comm', target: 'hn1-comm' },
+      { source: 'ship-comm', target: 'hn2-comm' },
+    ];
+
+    // ===== 坐标 =====
+    const nodePos = {};
+    function syncPositions() {
+      groups.forEach(g => {
+        if (g.subs) {
+          g.subs.forEach(sub => {
+            sub.nodes.forEach(n => {
+              nodePos[n.id] = { cx: sub.cx + n.ox, cy: sub.cy + n.oy, r: n.r };
+            });
+          });
+        }
+        if (g.nodes) {
+          g.nodes.forEach(n => {
+            nodePos[n.id] = { cx: g.cx + n.ox, cy: g.cy + n.oy, r: n.r };
+          });
+        }
+      });
+    }
+    syncPositions();
+
+    // ===== SVG 画布 =====
+    const svg = document.getElementById('canvas');
+    const W = 2000, H = 1050;
+    const vb = { x: 0, y: 0, w: W, h: H };
+    svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+    svg.setAttribute('width', '100%');
+    svg.style.height = 'calc(100vh - 48px)';
+
+    // 平移 & 缩放
+    let drag = null;
+    svg.addEventListener('mousedown', e => {
+      if (e.target === svg || e.target.tagName === 'rect' || e.target.tagName === 'path') {
+        drag = { mx: e.clientX, my: e.clientY };
+        svg.style.cursor = 'grabbing';
+      }
+    });
+    document.addEventListener('mousemove', e => {
+      if (!drag) return;
+      e.preventDefault();
+      const rect = svg.getBoundingClientRect(), s = vb.w / rect.width;
+      vb.x -= (e.clientX - drag.mx) * s;
+      vb.y -= (e.clientY - drag.my) * s;
+      drag.mx = e.clientX; drag.my = e.clientY;
+      svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+    });
+    document.addEventListener('mouseup', () => { drag = null; svg.style.cursor = 'default'; });
+    svg.addEventListener('wheel', e => {
+      e.preventDefault();
+      const rect = svg.getBoundingClientRect();
+      const mx = (e.clientX - rect.left) / rect.width, my = (e.clientY - rect.top) / rect.height;
+      const f = e.deltaY > 0 ? 1.1 : 0.9;
+      const nw = vb.w * f, nh = vb.h * f;
+      vb.x += (vb.w - nw) * mx; vb.y += (vb.h - nh) * my;
+      vb.w = nw; vb.h = nh;
+      svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+    });
+
+    // ===== 画连线辅助 =====
+    function drawLink(sp, tp, attrs) {
+      const dx = tp.cx - sp.cx, dy = tp.cy - sp.cy;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const margin = sp.r + 3;
+      const x1 = sp.cx + (dx / len) * margin, y1 = sp.cy + (dy / len) * margin;
+      const x2 = tp.cx - (dx / len) * (tp.r + 3), y2 = tp.cy - (dy / len) * (tp.r + 3);
+
+      if (attrs.useCurve) {
+        const cpx = (x1 + x2) / 2 - dy * attrs.curveFactor;
+        const cpy = (y1 + y2) / 2 + dx * attrs.curveFactor;
+        const d = `M${x1},${y1} Q${cpx},${cpy} ${x2},${y2}`;
+        if (attrs.glow) el('path', { d, fill: 'none', stroke: attrs.glowColor || attrs.stroke, 'stroke-width': attrs.glowWidth || 5, opacity: attrs.glowOpacity || 0.1 }, attrs.layer);
+        el('path', { d, fill: 'none', stroke: attrs.stroke, 'stroke-width': attrs.width, 'stroke-dasharray': attrs.dash || '', opacity: attrs.opacity || 1, 'marker-end': attrs.arrow ? 'url(#arrow)' : '', 'marker-start': attrs.arrowStart ? 'url(#arrowStart)' : '' }, attrs.layer);
+      } else {
+        if (attrs.glow) el('line', { x1, y1, x2, y2, stroke: attrs.glowColor || attrs.stroke, 'stroke-width': attrs.glowWidth || 5, opacity: attrs.glowOpacity || 0.1 }, attrs.layer);
+        el('line', { x1, y1, x2, y2, stroke: attrs.stroke, 'stroke-width': attrs.width, 'stroke-dasharray': attrs.dash || '', opacity: attrs.opacity || 1, 'marker-end': attrs.arrow ? 'url(#arrow)' : '' }, attrs.layer);
+      }
+    }
+
+    // ===== 渲染 =====
+    function render() {
+      while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+      const defs = el('defs', {}, svg);
+      // 箭头标记
+      const mk = el('marker', { id: 'arrow', markerWidth: '8', markerHeight: '6', refX: '7', refY: '3', orient: 'auto' }, defs);
+      el('polygon', { points: '0 0.5, 7 3, 0 5.5', fill: '#38bdf8' }, mk);
+      const mkW = el('marker', { id: 'arrowW', markerWidth: '8', markerHeight: '6', refX: '7', refY: '3', orient: 'auto' }, defs);
+      el('polygon', { points: '0 0.5, 7 3, 0 5.5', fill: '#fbbf24' }, mkW);
+      // 网格
+      const pat = el('pattern', { id: 'g', width: '40', height: '40', patternUnits: 'userSpaceOnUse' }, defs);
+      el('path', { d: 'M 40 0 L 0 0 0 40', fill: 'none', stroke: '#1e293b', 'stroke-width': '0.5' }, pat);
+
+      // 背景
+      el('rect', { width: '10000', height: '10000', x: '-5000', y: '-5000', fill: '#0f172a' }, svg);
+      el('rect', { width: '10000', height: '10000', x: '-5000', y: '-5000', fill: 'url(#g)' }, svg);
+
+      const linkLayer = el('g', {}, svg);
+      const circleLayer = el('g', {}, svg);
+      const nodeLayer = el('g', {}, svg);
+      const labelLayer = el('g', {}, svg);
+
+      // ---- 1. 外部超短波无线链路（黄色虚线弧线）----
+      wirelessLinks.forEach(link => {
+        const sp = nodePos[link.source], tp = nodePos[link.target];
+        if (!sp || !tp) return;
+        drawLink(sp, tp, {
+          layer: linkLayer, stroke: '#fbbf24', width: 1.5, dash: '3 3',
+          useCurve: true, curveFactor: 0.15,
+          glow: true, glowColor: '#fbbf24', glowWidth: 4, glowOpacity: 0.08,
+        });
+      });
+
+      // ---- 2. 外部有线链路（青色实线）----
+      wiredLinks.forEach(link => {
+        const sp = nodePos[link.source], tp = nodePos[link.target];
+        if (!sp || !tp) return;
+        drawLink(sp, tp, {
+          layer: linkLayer, stroke: '#38bdf8', width: 1.5,
+          glow: true,
+        });
+      });
+
+      // ---- 3. 组内子站间链路 ----
+      groups.forEach(g => {
+        if (g.subLinks) {
+          g.subLinks.forEach(([sid, tid]) => {
+            const sp = nodePos[sid], tp = nodePos[tid];
+            if (!sp || !tp) return;
+            drawLink(sp, tp, {
+              layer: linkLayer, stroke: '#475569', width: 1, dash: '4 2', opacity: 0.8,
+            });
+          });
+        }
+      });
+
+      // ---- 4. 子站内部链路 ----
+      groups.forEach(g => {
+        if (g.subs) {
+          g.subs.forEach(sub => {
+            if (sub.links) {
+              sub.links.forEach(([sid, tid]) => {
+                const sp = nodePos[sid], tp = nodePos[tid];
+                if (!sp || !tp) return;
+                drawLink(sp, tp, {
+                  layer: linkLayer, stroke: '#334155', width: 1, dash: '4 2',
+                });
+              });
+            }
+          });
+        }
+        if (g.internalLinks) {
+          g.internalLinks.forEach(([sid, tid]) => {
+            const sp = nodePos[sid], tp = nodePos[tid];
+            if (!sp || !tp) return;
+            drawLink(sp, tp, {
+              layer: linkLayer, stroke: '#334155', width: 1, dash: '4 2',
+            });
+          });
+        }
+      });
+
+      // ---- 5. 外层分组圆 ----
+      groups.forEach(g => {
+        el('circle', {
+          cx: g.cx, cy: g.cy, r: g.r,
+          fill: 'transparent', stroke: g.color,
+          'stroke-width': 1.5, 'stroke-dasharray': '6 3', opacity: 0.5,
+        }, circleLayer);
+        txt(g.name, {
+          x: g.cx, y: g.cy - g.r + 14,
+          'text-anchor': 'middle', fill: g.color,
+          'font-size': 10, 'font-weight': 'bold', opacity: 0.8,
+        }, labelLayer);
+      });
+
+      // ---- 6. 子站圆 ----
+      groups.forEach(g => {
+        if (g.subs) {
+          g.subs.forEach(sub => {
+            el('circle', {
+              cx: sub.cx, cy: sub.cy, r: sub.r,
+              fill: 'transparent', stroke: g.color,
+              'stroke-width': 1, 'stroke-dasharray': '4 2', opacity: 0.35,
+            }, circleLayer);
+            if (sub.name) {
+              txt(sub.name, {
+                x: sub.cx, y: sub.cy - sub.r + 12,
+                'text-anchor': 'middle', fill: g.color,
+                'font-size': 8, opacity: 0.6,
+              }, labelLayer);
+            }
+          });
+        }
+      });
+
+      // ---- 7. 设备节点 ----
+      groups.forEach(g => {
+        const allNodes = [];
+        if (g.subs) g.subs.forEach(sub => sub.nodes.forEach(n => allNodes.push(n)));
+        if (g.nodes) g.nodes.forEach(n => allNodes.push(n));
+
+        allNodes.forEach(n => {
+          const p = nodePos[n.id];
+          el('circle', {
+            cx: p.cx, cy: p.cy, r: p.r,
+            fill: 'transparent', stroke: '#475569', 'stroke-width': 0.8,
+          }, nodeLayer);
+          txt(icons[n.icon] || '📦', {
+            x: p.cx, y: p.cy - 2, 'text-anchor': 'middle', 'font-size': p.r > 17 ? 12 : 10,
+          }, nodeLayer);
+          txt(n.name, {
+            x: p.cx, y: p.cy + 11, 'text-anchor': 'middle',
+            fill: '#64748b', 'font-size': p.r > 17 ? 7 : 6,
+          }, nodeLayer);
+        });
+      });
+    }
+
+    // 图例
+    (function buildLegend() {
+      const legend = document.getElementById('legend');
+      legend.innerHTML = `
+        <h4>设备类型</h4>
+        <div class="row"><span style="font-size:14px">💻</span><span>终端</span></div>
+        <div class="row"><span style="font-size:14px">📡</span><span>通信机</span></div>
+        <div class="row"><span style="font-size:14px">🔀</span><span>路由器</span></div>
+        <div class="sep"></div>
+        <h4>链路类型</h4>
+        <div class="row"><svg width="32" height="6"><line x1="0" y1="3" x2="32" y2="3" stroke="#334155" stroke-width="1" stroke-dasharray="4 2"/></svg><span>内部链路</span></div>
+        <div class="row"><svg width="32" height="6"><line x1="0" y1="3" x2="32" y2="3" stroke="#38bdf8" stroke-width="1.5"/></svg><span>有线路由</span></div>
+        <div class="row"><svg width="32" height="6"><line x1="0" y1="3" x2="32" y2="3" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="3 3"/></svg><span>超短波无线</span></div>
+      `;
+    })();
+
+    render();
+  </script>
+</body>
+</html>
