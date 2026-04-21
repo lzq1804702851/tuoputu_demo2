@@ -12,6 +12,14 @@
     }
     #toolbar h3 { color: #38bdf8; font-size: 16px; }
     #toolbar span { color: #64748b; font-size: 13px; }
+    #info { margin-left: auto; color: #475569; font-size: 12px; }
+    #faultBtn {
+      background: #991b1b33; border: 1px solid #ef4444; color: #fca5a5;
+      padding: 4px 14px; border-radius: 6px; cursor: pointer; font-size: 13px;
+      font-family: "Microsoft YaHei", sans-serif; transition: all 0.2s;
+    }
+    #faultBtn:hover { background: #991b1b66; }
+    #faultBtn.active { background: #ef4444; color: #fff; border-color: #ef4444; }
     svg { display: block; }
     #legend {
       position: fixed; left: 16px; bottom: 16px;
@@ -28,7 +36,9 @@
 <body>
   <div id="toolbar">
     <h3>通信网络拓扑图</h3>
-    <span>滚轮缩放 | 空白处平移</span>
+    <span>拖拽节点 | 滚轮缩放 | 空白处平移</span>
+    <span id="info"></span>
+    <button id="faultBtn" onclick="toggleFaultMode()">离线筛选</button>
   </div>
   <svg id="canvas"></svg>
   <div id="legend"></div>
@@ -46,27 +56,26 @@
       t.textContent = content;
       return t;
     }
+    const icons = { terminal: '💻', 'comm-device': '📡', router: '🔀', gps: '🛰' };
 
-    const icons = { terminal: '💻', 'comm-device': '📡', router: '🔀' };
-
-    // ===== 数据定义 =====
+    // ===== 岛屿 & 路由站数据 =====
     const groups = [
       {
         id: 'dazhou', name: '大洲岛有线通信网', color: '#38bdf8',
         cx: 360, cy: 400, r: 200,
         subs: [
           {
-            name: '大洲岛1号通信站', cx: 360, cy: 300, r: 70,
+            subId: 'dz-sta1', name: '大洲岛1号通信站', cx: 360, cy: 300, r: 70,
             nodes: [
-              { id: 'dz-term', name: '终端', icon: 'terminal', ox: 0, oy: -20, r: 15 },
-              { id: 'dz-comm', name: '通信机', icon: 'comm-device', ox: 0, oy: 24, r: 17 },
+              { id: 'dz-term', name: '终端', icon: 'terminal', ox: 0, oy: -20, r: 15, status: 'online' },
+              { id: 'dz-comm', name: '通信机', icon: 'comm-device', ox: 0, oy: 24, r: 17, status: 'online' },
             ],
             links: [['dz-term', 'dz-comm']],
           },
           {
-            name: '岛上核心路由站点', cx: 360, cy: 510, r: 42,
+            subId: 'dz-sta-rt', name: '岛上核心路由站点', cx: 360, cy: 510, r: 42,
             nodes: [
-              { id: 'dz-route', name: '路由器', icon: 'router', ox: 0, oy: 0, r: 18 },
+              { id: 'dz-route', name: '路由器', icon: 'router', ox: 0, oy: 0, r: 18, status: 'online' },
             ],
             links: [],
           },
@@ -78,7 +87,7 @@
         cx: 1000, cy: 350, r: 60,
         subs: [],
         nodes: [
-          { id: 'sea-route', name: '路由器', icon: 'router', ox: 0, oy: 0, r: 20 },
+          { id: 'sea-route', name: '路由器', icon: 'router', ox: 0, oy: 0, r: 20, status: 'online' },
         ],
       },
       {
@@ -86,102 +95,193 @@
         cx: 1640, cy: 400, r: 220,
         subs: [
           {
-            name: '海南岛1号通信站', cx: 1550, cy: 300, r: 70,
+            subId: 'hn-sta1', name: '海南岛1号通信站', cx: 1550, cy: 300, r: 70,
             nodes: [
-              { id: 'hn1-term', name: '终端', icon: 'terminal', ox: 0, oy: -20, r: 15 },
-              { id: 'hn1-comm', name: '通信机', icon: 'comm-device', ox: 0, oy: 24, r: 17 },
+              { id: 'hn1-term', name: '终端', icon: 'terminal', ox: 0, oy: -20, r: 15, status: 'online' },
+              { id: 'hn1-comm', name: '通信机', icon: 'comm-device', ox: 0, oy: 24, r: 17, status: 'offline' },
             ],
             links: [['hn1-term', 'hn1-comm']],
           },
           {
-            name: '海南岛2号通信站', cx: 1730, cy: 300, r: 70,
+            subId: 'hn-sta2', name: '海南岛2号通信站', cx: 1730, cy: 300, r: 70,
             nodes: [
-              { id: 'hn2-term', name: '终端', icon: 'terminal', ox: 0, oy: -20, r: 15 },
-              { id: 'hn2-comm', name: '通信机', icon: 'comm-device', ox: 0, oy: 24, r: 17 },
+              { id: 'hn2-term', name: '终端', icon: 'terminal', ox: 0, oy: -20, r: 15, status: 'online' },
+              { id: 'hn2-comm', name: '通信机', icon: 'comm-device', ox: 0, oy: 24, r: 17, status: 'online' },
             ],
             links: [['hn2-term', 'hn2-comm']],
           },
           {
-            name: '岛上核心路由站点', cx: 1640, cy: 520, r: 42,
+            subId: 'hn-sta-rt', name: '岛上核心路由站点', cx: 1640, cy: 520, r: 42,
             nodes: [
-              { id: 'hn-route', name: '路由器', icon: 'router', ox: 0, oy: 0, r: 18 },
+              { id: 'hn-route', name: '路由器', icon: 'router', ox: 0, oy: 0, r: 18, status: 'offline' },
             ],
             links: [],
           },
         ],
         subLinks: [['hn1-comm', 'hn-route'], ['hn2-comm', 'hn-route']],
       },
-      {
-        id: 'ship', name: '1号邮轮（内部通信网）', color: '#06b6d4',
-        cx: 1000, cy: 830, r: 105,
-        subs: [],
-        nodes: [
-          { id: 'ship-term', name: '终端', icon: 'terminal', ox: -38, oy: 0, r: 15 },
-          { id: 'ship-comm', name: '通信机', icon: 'comm-device', ox: 38, oy: 0, r: 17 },
-        ],
-        internalLinks: [['ship-term', 'ship-comm']],
-      },
     ];
 
-    // 外部有线链路
     const wiredLinks = [
       { source: 'dz-route', target: 'sea-route' },
       { source: 'hn-route', target: 'sea-route' },
     ];
+    const wirelessLinks = [];
 
-    // 超短波无线链路（邮轮通信机 → 各岛通信机）
-    const wirelessLinks = [
-      { source: 'ship-comm', target: 'dz-comm' },
-      { source: 'ship-comm', target: 'hn1-comm' },
-      { source: 'ship-comm', target: 'hn2-comm' },
+    // ===== 生成10艘船 =====
+    const shipStatuses = [
+      { term: 'offline', comm: 'online',  gps: 'online' },
+      { term: 'online',  comm: 'online',  gps: 'online' },
+      { term: 'online',  comm: 'offline', gps: 'online' },
+      { term: 'online',  comm: 'online',  gps: 'online' },
+      { term: 'online',  comm: 'online',  gps: 'offline' },
+      { term: 'online',  comm: 'online',  gps: 'online' },
+      { term: 'online',  comm: 'online',  gps: 'online' },
+      { term: 'online',  comm: 'offline', gps: 'online' },
+      { term: 'online',  comm: 'online',  gps: 'online' },
+      { term: 'online',  comm: 'online',  gps: 'online' },
     ];
+    for (let i = 0; i < 10; i++) {
+      const row = Math.floor(i / 5), col = i % 5;
+      const cx = 220 + col * 320, cy = 960 + row * 250;
+      const st = shipStatuses[i];
+      groups.push({
+        id: `ship${i}`, name: `${i + 1}号船`, color: '#06b6d4',
+        cx, cy, r: 65, subs: [],
+        nodes: [
+          { id: `s${i}-term`, name: '终端', icon: 'terminal', ox: -22, oy: -12, r: 13, status: st.term },
+          { id: `s${i}-comm`, name: '通信机', icon: 'comm-device', ox: 22, oy: -12, r: 15, status: st.comm },
+          { id: `s${i}-gps`, name: 'GPS', icon: 'gps', ox: 0, oy: 25, r: 11, status: st.gps },
+        ],
+        internalLinks: [[`s${i}-term`, `s${i}-comm`]],
+      });
+      wirelessLinks.push(
+        { source: `s${i}-comm`, target: 'dz-comm' },
+        { source: `s${i}-comm`, target: 'hn1-comm' },
+        { source: `s${i}-comm`, target: 'hn2-comm' },
+      );
+    }
+
+    // ===== 索引 =====
+    const allNodes = {};
+    const nodeContainer = {};
+    const subById = {};
+    groups.forEach(g => {
+      if (g.subs) g.subs.forEach(sub => {
+        subById[sub.subId] = { sub, group: g };
+        sub.nodes.forEach(n => {
+          allNodes[n.id] = n;
+          nodeContainer[n.id] = { ref: sub, r: sub.r };
+        });
+      });
+      if (g.nodes) g.nodes.forEach(n => {
+        allNodes[n.id] = n;
+        nodeContainer[n.id] = { ref: g, r: g.r };
+      });
+    });
 
     // ===== 坐标 =====
     const nodePos = {};
     function syncPositions() {
       groups.forEach(g => {
-        if (g.subs) {
-          g.subs.forEach(sub => {
-            sub.nodes.forEach(n => {
-              nodePos[n.id] = { cx: sub.cx + n.ox, cy: sub.cy + n.oy, r: n.r };
-            });
-          });
-        }
-        if (g.nodes) {
-          g.nodes.forEach(n => {
-            nodePos[n.id] = { cx: g.cx + n.ox, cy: g.cy + n.oy, r: n.r };
-          });
-        }
+        if (g.subs) g.subs.forEach(sub => sub.nodes.forEach(n => {
+          nodePos[n.id] = { cx: sub.cx + n.ox, cy: sub.cy + n.oy, r: n.r };
+        }));
+        if (g.nodes) g.nodes.forEach(n => {
+          nodePos[n.id] = { cx: g.cx + n.ox, cy: g.cy + n.oy, r: n.r };
+        });
       });
     }
     syncPositions();
 
     // ===== SVG 画布 =====
     const svg = document.getElementById('canvas');
-    const W = 2000, H = 1050;
+    const W = 2000, H = 1400;
     const vb = { x: 0, y: 0, w: W, h: H };
     svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
     svg.setAttribute('width', '100%');
     svg.style.height = 'calc(100vh - 48px)';
 
-    // 平移 & 缩放
+    function screenToSvg(sx, sy) {
+      const rect = svg.getBoundingClientRect();
+      return { x: (sx - rect.left) * vb.w / rect.width + vb.x, y: (sy - rect.top) * vb.h / rect.height + vb.y };
+    }
+
+    // ===== 拖拽 =====
     let drag = null;
     svg.addEventListener('mousedown', e => {
-      if (e.target === svg || e.target.tagName === 'rect' || e.target.tagName === 'path') {
-        drag = { mx: e.clientX, my: e.clientY };
+      const nid = e.target.getAttribute('data-nid');
+      const sid = e.target.getAttribute('data-sid');
+      const gid = e.target.getAttribute('data-gid');
+      if (nid) {
+        drag = { type: 'node', id: nid, scx: nodePos[nid].cx, scy: nodePos[nid].cy, sx: e.clientX, sy: e.clientY };
+        svg.style.cursor = 'grabbing';
+        e.preventDefault();
+      } else if (sid && subById[sid]) {
+        const { sub, group } = subById[sid];
+        const ns = sub.nodes.map(n => ({ id: n.id, cx: nodePos[n.id].cx, cy: nodePos[n.id].cy }));
+        drag = { type: 'sub', sub, group, scx: sub.cx, scy: sub.cy, ns, sx: e.clientX, sy: e.clientY };
+        svg.style.cursor = 'grabbing';
+        e.preventDefault();
+      } else if (gid) {
+        const g = groups.find(g => g.id === gid);
+        if (g) {
+          const subs = (g.subs || []).map(sub => ({ sub, scx: sub.cx, scy: sub.cy }));
+          const nodes = [];
+          if (g.subs) g.subs.forEach(sub => sub.nodes.forEach(n => nodes.push({ id: n.id, cx: nodePos[n.id].cx, cy: nodePos[n.id].cy })));
+          if (g.nodes) g.nodes.forEach(n => nodes.push({ id: n.id, cx: nodePos[n.id].cx, cy: nodePos[n.id].cy }));
+          drag = { type: 'group', group: g, subs, nodes, scx: g.cx, scy: g.cy, sx: e.clientX, sy: e.clientY };
+          svg.style.cursor = 'grabbing';
+          e.preventDefault();
+        }
+      } else if (e.target === svg || e.target.tagName === 'rect' || e.target.tagName === 'path') {
+        drag = { type: 'pan', sx: e.clientX, sy: e.clientY };
         svg.style.cursor = 'grabbing';
       }
     });
     document.addEventListener('mousemove', e => {
       if (!drag) return;
       e.preventDefault();
-      const rect = svg.getBoundingClientRect(), s = vb.w / rect.width;
-      vb.x -= (e.clientX - drag.mx) * s;
-      vb.y -= (e.clientY - drag.my) * s;
-      drag.mx = e.clientX; drag.my = e.clientY;
-      svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+      if (drag.type === 'pan') {
+        const rect = svg.getBoundingClientRect(), s = vb.w / rect.width;
+        vb.x -= (e.clientX - drag.sx) * s; vb.y -= (e.clientY - drag.sy) * s;
+        drag.sx = e.clientX; drag.sy = e.clientY;
+        svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+        return;
+      }
+      const cur = screenToSvg(e.clientX, e.clientY);
+      const start = screenToSvg(drag.sx, drag.sy);
+      const ddx = cur.x - start.x, ddy = cur.y - start.y;
+
+      if (drag.type === 'node') {
+        let nx = drag.scx + ddx, ny = drag.scy + ddy;
+        const c = nodeContainer[drag.id];
+        const ccx = c.ref.cx, ccy = c.ref.cy, maxD = c.r - nodePos[drag.id].r - 2;
+        const dx = nx - ccx, dy = ny - ccy, dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > maxD && dist > 0) { nx = ccx + dx / dist * maxD; ny = ccy + dy / dist * maxD; }
+        nodePos[drag.id].cx = nx; nodePos[drag.id].cy = ny;
+        render();
+      } else if (drag.type === 'sub') {
+        let nx = drag.scx + ddx, ny = drag.scy + ddy;
+        const gcx = drag.group.cx, gcy = drag.group.cy;
+        const maxD = drag.group.r - drag.sub.r - 2;
+        const dx = nx - gcx, dy = ny - gcy, dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > maxD && dist > 0) { nx = gcx + dx / dist * maxD; ny = gcy + dy / dist * maxD; }
+        const adx = nx - drag.scx, ady = ny - drag.scy;
+        drag.sub.cx = nx; drag.sub.cy = ny;
+        drag.ns.forEach(n => { nodePos[n.id].cx = n.cx + adx; nodePos[n.id].cy = n.cy + ady; });
+        render();
+      } else if (drag.type === 'group') {
+        const adx = ddx, ady = ddy;
+        drag.group.cx = drag.scx + adx; drag.group.cy = drag.scy + ady;
+        drag.subs.forEach(s => { s.sub.cx = s.scx + adx; s.sub.cy = s.scy + ady; });
+        drag.nodes.forEach(n => { nodePos[n.id].cx = n.cx + adx; nodePos[n.id].cy = n.cy + ady; });
+        render();
+      }
     });
-    document.addEventListener('mouseup', () => { drag = null; svg.style.cursor = 'default'; });
+    document.addEventListener('mouseup', () => { drag = null; svg.style.cursor = ''; });
+
+    // 缩放
     svg.addEventListener('wheel', e => {
       e.preventDefault();
       const rect = svg.getBoundingClientRect();
@@ -193,181 +293,164 @@
       svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
     });
 
-    // ===== 画连线辅助 =====
-    function drawLink(sp, tp, attrs) {
+    // 离线筛选
+    let faultMode = false;
+    function toggleFaultMode() {
+      faultMode = !faultMode;
+      const btn = document.getElementById('faultBtn');
+      btn.classList.toggle('active', faultMode);
+      btn.textContent = faultMode ? '退出筛选' : '离线筛选';
+      render();
+    }
+
+    // ===== 画线辅助 =====
+    function drawLink(sp, tp, a) {
       const dx = tp.cx - sp.cx, dy = tp.cy - sp.cy;
       const len = Math.sqrt(dx * dx + dy * dy) || 1;
-      const margin = sp.r + 3;
-      const x1 = sp.cx + (dx / len) * margin, y1 = sp.cy + (dy / len) * margin;
-      const x2 = tp.cx - (dx / len) * (tp.r + 3), y2 = tp.cy - (dy / len) * (tp.r + 3);
-
-      if (attrs.useCurve) {
-        const cpx = (x1 + x2) / 2 - dy * attrs.curveFactor;
-        const cpy = (y1 + y2) / 2 + dx * attrs.curveFactor;
+      const x1 = sp.cx + dx / len * (sp.r + 2), y1 = sp.cy + dy / len * (sp.r + 2);
+      const x2 = tp.cx - dx / len * (tp.r + 2), y2 = tp.cy - dy / len * (tp.r + 2);
+      if (a.curve) {
+        const cpx = (x1 + x2) / 2 - dy * a.curve, cpy = (y1 + y2) / 2 + dx * a.curve;
         const d = `M${x1},${y1} Q${cpx},${cpy} ${x2},${y2}`;
-        if (attrs.glow) el('path', { d, fill: 'none', stroke: attrs.glowColor || attrs.stroke, 'stroke-width': attrs.glowWidth || 5, opacity: attrs.glowOpacity || 0.1 }, attrs.layer);
-        el('path', { d, fill: 'none', stroke: attrs.stroke, 'stroke-width': attrs.width, 'stroke-dasharray': attrs.dash || '', opacity: attrs.opacity || 1, 'marker-end': attrs.arrow ? 'url(#arrow)' : '', 'marker-start': attrs.arrowStart ? 'url(#arrowStart)' : '' }, attrs.layer);
+        el('path', { d, fill: 'none', stroke: a.stroke, 'stroke-width': a.width, 'stroke-dasharray': a.dash || '', opacity: a.opacity ?? 1 }, a.layer);
       } else {
-        if (attrs.glow) el('line', { x1, y1, x2, y2, stroke: attrs.glowColor || attrs.stroke, 'stroke-width': attrs.glowWidth || 5, opacity: attrs.glowOpacity || 0.1 }, attrs.layer);
-        el('line', { x1, y1, x2, y2, stroke: attrs.stroke, 'stroke-width': attrs.width, 'stroke-dasharray': attrs.dash || '', opacity: attrs.opacity || 1, 'marker-end': attrs.arrow ? 'url(#arrow)' : '' }, attrs.layer);
+        el('line', { x1, y1, x2, y2, stroke: a.stroke, 'stroke-width': a.width, 'stroke-dasharray': a.dash || '', opacity: a.opacity ?? 1 }, a.layer);
       }
+    }
+
+    function hasOff(s, t) {
+      return (allNodes[s]?.status === 'offline') || (allNodes[t]?.status === 'offline');
+    }
+    function gOff(g) {
+      if (g.subs) return g.subs.some(s => s.nodes.some(n => n.status === 'offline'));
+      if (g.nodes) return g.nodes.some(n => n.status === 'offline');
+      return false;
     }
 
     // ===== 渲染 =====
     function render() {
       while (svg.firstChild) svg.removeChild(svg.firstChild);
-
       const defs = el('defs', {}, svg);
-      // 箭头标记
-      const mk = el('marker', { id: 'arrow', markerWidth: '8', markerHeight: '6', refX: '7', refY: '3', orient: 'auto' }, defs);
-      el('polygon', { points: '0 0.5, 7 3, 0 5.5', fill: '#38bdf8' }, mk);
-      const mkW = el('marker', { id: 'arrowW', markerWidth: '8', markerHeight: '6', refX: '7', refY: '3', orient: 'auto' }, defs);
-      el('polygon', { points: '0 0.5, 7 3, 0 5.5', fill: '#fbbf24' }, mkW);
-      // 网格
       const pat = el('pattern', { id: 'g', width: '40', height: '40', patternUnits: 'userSpaceOnUse' }, defs);
       el('path', { d: 'M 40 0 L 0 0 0 40', fill: 'none', stroke: '#1e293b', 'stroke-width': '0.5' }, pat);
 
-      // 背景
       el('rect', { width: '10000', height: '10000', x: '-5000', y: '-5000', fill: '#0f172a' }, svg);
       el('rect', { width: '10000', height: '10000', x: '-5000', y: '-5000', fill: 'url(#g)' }, svg);
 
-      const linkLayer = el('g', {}, svg);
-      const circleLayer = el('g', {}, svg);
-      const nodeLayer = el('g', {}, svg);
-      const labelLayer = el('g', {}, svg);
+      const ll = el('g', {}, svg), cl = el('g', {}, svg), nl = el('g', {}, svg), lbl = el('g', {}, svg);
 
-      // ---- 1. 外部超短波无线链路（黄色虚线弧线）----
-      wirelessLinks.forEach(link => {
-        const sp = nodePos[link.source], tp = nodePos[link.target];
+      // 离线筛选：收集离线设备及其直连对端
+      const faultRelated = new Set();
+      if (faultMode) {
+        Object.entries(allNodes).forEach(([id, n]) => { if (n.status === 'offline') faultRelated.add(id); });
+        const allPairs = [...wirelessLinks, ...wiredLinks];
+        groups.forEach(g => {
+          if (g.subLinks) g.subLinks.forEach(l => allPairs.push({ source: l[0], target: l[1] }));
+          if (g.subs) g.subs.forEach(sub => { if (sub.links) sub.links.forEach(l => allPairs.push({ source: l[0], target: l[1] })); });
+          if (g.internalLinks) g.internalLinks.forEach(l => allPairs.push({ source: l[0], target: l[1] }));
+        });
+        allPairs.forEach(l => {
+          if (allNodes[l.source]?.status === 'offline' || allNodes[l.target]?.status === 'offline') {
+            faultRelated.add(l.source);
+            faultRelated.add(l.target);
+          }
+        });
+      }
+
+      // 1) 无线链路
+      wirelessLinks.forEach((lk, i) => {
+        const sp = nodePos[lk.source], tp = nodePos[lk.target];
         if (!sp || !tp) return;
-        drawLink(sp, tp, {
-          layer: linkLayer, stroke: '#fbbf24', width: 1.5, dash: '3 3',
-          useCurve: true, curveFactor: 0.15,
-          glow: true, glowColor: '#fbbf24', glowWidth: 4, glowOpacity: 0.08,
+        const dim = faultMode && !hasOff(lk.source, lk.target);
+        drawLink(sp, tp, { layer: ll, stroke: '#fbbf24', width: 1, dash: '3 3', curve: 0.08 + (i % 3) * 0.04, opacity: dim ? 0.06 : 0.45 });
+      });
+
+      // 2) 有线链路
+      wiredLinks.forEach(lk => {
+        const sp = nodePos[lk.source], tp = nodePos[lk.target];
+        if (!sp || !tp) return;
+        const dim = faultMode && !hasOff(lk.source, lk.target);
+        drawLink(sp, tp, { layer: ll, stroke: '#38bdf8', width: 1.5, opacity: dim ? 0.08 : 1 });
+      });
+
+      // 3) 子站间链路
+      groups.forEach(g => { if (g.subLinks) g.subLinks.forEach(([s, t]) => {
+        const sp = nodePos[s], tp = nodePos[t]; if (!sp || !tp) return;
+        const dim = faultMode && !hasOff(s, t);
+        drawLink(sp, tp, { layer: ll, stroke: '#475569', width: 1, dash: '4 2', opacity: dim ? 0.05 : 0.8 });
+      }); });
+
+      // 4) 内部链路
+      groups.forEach(g => {
+        const lks = [];
+        if (g.subs) g.subs.forEach(sub => { if (sub.links) sub.links.forEach(l => lks.push(l)); });
+        if (g.internalLinks) g.internalLinks.forEach(l => lks.push(l));
+        lks.forEach(([s, t]) => {
+          const sp = nodePos[s], tp = nodePos[t]; if (!sp || !tp) return;
+          const dim = faultMode && !hasOff(s, t);
+          drawLink(sp, tp, { layer: ll, stroke: '#334155', width: 1, dash: '4 2', opacity: dim ? 0.05 : 1 });
         });
       });
 
-      // ---- 2. 外部有线链路（青色实线）----
-      wiredLinks.forEach(link => {
-        const sp = nodePos[link.source], tp = nodePos[link.target];
-        if (!sp || !tp) return;
-        drawLink(sp, tp, {
-          layer: linkLayer, stroke: '#38bdf8', width: 1.5,
-          glow: true,
-        });
+      // 5) 外层分组圆
+      groups.forEach(g => {
+        const dim = faultMode && !gOff(g);
+        el('circle', { cx: g.cx, cy: g.cy, r: g.r, fill: 'transparent', stroke: g.color, 'stroke-width': 1.5, 'stroke-dasharray': '6 3', opacity: dim ? 0.05 : 0.5, 'data-gid': g.id, cursor: 'grab' }, cl);
+        txt(g.name, { x: g.cx, y: g.cy - g.r + 14, 'text-anchor': 'middle', fill: g.color, 'font-size': g.r > 100 ? 10 : 9, 'font-weight': 'bold', opacity: dim ? 0.05 : 0.8, 'data-gid': g.id, cursor: 'grab' }, lbl);
       });
 
-      // ---- 3. 组内子站间链路 ----
-      groups.forEach(g => {
-        if (g.subLinks) {
-          g.subLinks.forEach(([sid, tid]) => {
-            const sp = nodePos[sid], tp = nodePos[tid];
-            if (!sp || !tp) return;
-            drawLink(sp, tp, {
-              layer: linkLayer, stroke: '#475569', width: 1, dash: '4 2', opacity: 0.8,
-            });
-          });
-        }
-      });
+      // 6) 子站圆
+      groups.forEach(g => { if (g.subs) g.subs.forEach(sub => {
+        const dim = faultMode && !sub.nodes.some(n => n.status === 'offline');
+        el('circle', { cx: sub.cx, cy: sub.cy, r: sub.r, fill: 'transparent', stroke: g.color, 'stroke-width': 1, 'stroke-dasharray': '4 2', opacity: dim ? 0.04 : 0.35, 'data-sid': sub.subId, cursor: 'grab' }, cl);
+        if (sub.name) txt(sub.name, { x: sub.cx, y: sub.cy - sub.r + 12, 'text-anchor': 'middle', fill: g.color, 'font-size': 8, opacity: dim ? 0.04 : 0.6, 'data-sid': sub.subId, cursor: 'grab' }, lbl);
+      }); });
 
-      // ---- 4. 子站内部链路 ----
+      // 7) 设备节点
       groups.forEach(g => {
-        if (g.subs) {
-          g.subs.forEach(sub => {
-            if (sub.links) {
-              sub.links.forEach(([sid, tid]) => {
-                const sp = nodePos[sid], tp = nodePos[tid];
-                if (!sp || !tp) return;
-                drawLink(sp, tp, {
-                  layer: linkLayer, stroke: '#334155', width: 1, dash: '4 2',
-                });
-              });
-            }
-          });
-        }
-        if (g.internalLinks) {
-          g.internalLinks.forEach(([sid, tid]) => {
-            const sp = nodePos[sid], tp = nodePos[tid];
-            if (!sp || !tp) return;
-            drawLink(sp, tp, {
-              layer: linkLayer, stroke: '#334155', width: 1, dash: '4 2',
-            });
-          });
-        }
-      });
-
-      // ---- 5. 外层分组圆 ----
-      groups.forEach(g => {
-        el('circle', {
-          cx: g.cx, cy: g.cy, r: g.r,
-          fill: 'transparent', stroke: g.color,
-          'stroke-width': 1.5, 'stroke-dasharray': '6 3', opacity: 0.5,
-        }, circleLayer);
-        txt(g.name, {
-          x: g.cx, y: g.cy - g.r + 14,
-          'text-anchor': 'middle', fill: g.color,
-          'font-size': 10, 'font-weight': 'bold', opacity: 0.8,
-        }, labelLayer);
-      });
-
-      // ---- 6. 子站圆 ----
-      groups.forEach(g => {
-        if (g.subs) {
-          g.subs.forEach(sub => {
-            el('circle', {
-              cx: sub.cx, cy: sub.cy, r: sub.r,
-              fill: 'transparent', stroke: g.color,
-              'stroke-width': 1, 'stroke-dasharray': '4 2', opacity: 0.35,
-            }, circleLayer);
-            if (sub.name) {
-              txt(sub.name, {
-                x: sub.cx, y: sub.cy - sub.r + 12,
-                'text-anchor': 'middle', fill: g.color,
-                'font-size': 8, opacity: 0.6,
-              }, labelLayer);
-            }
-          });
-        }
-      });
-
-      // ---- 7. 设备节点 ----
-      groups.forEach(g => {
-        const allNodes = [];
-        if (g.subs) g.subs.forEach(sub => sub.nodes.forEach(n => allNodes.push(n)));
-        if (g.nodes) g.nodes.forEach(n => allNodes.push(n));
-
-        allNodes.forEach(n => {
-          const p = nodePos[n.id];
-          el('circle', {
-            cx: p.cx, cy: p.cy, r: p.r,
-            fill: 'transparent', stroke: '#475569', 'stroke-width': 0.8,
-          }, nodeLayer);
-          txt(icons[n.icon] || '📦', {
-            x: p.cx, y: p.cy - 2, 'text-anchor': 'middle', 'font-size': p.r > 17 ? 12 : 10,
-          }, nodeLayer);
-          txt(n.name, {
-            x: p.cx, y: p.cy + 11, 'text-anchor': 'middle',
-            fill: '#64748b', 'font-size': p.r > 17 ? 7 : 6,
-          }, nodeLayer);
+        const nodes = [];
+        if (g.subs) g.subs.forEach(sub => sub.nodes.forEach(n => nodes.push(n)));
+        if (g.nodes) g.nodes.forEach(n => nodes.push(n));
+        nodes.forEach(n => {
+          const p = nodePos[n.id], off = n.status === 'offline';
+          const related = faultRelated.has(n.id);
+          const dim = faultMode && !related, op = dim ? 0.06 : 1;
+          if (off) {
+            const gc = el('circle', { cx: p.cx, cy: p.cy, r: p.r + 4, fill: '#ef444415', stroke: '#ef4444', 'stroke-width': 1.5 }, nl);
+            el('animate', { attributeName: 'opacity', values: '0.3;0.9;0.3', dur: '1.2s', repeatCount: 'indefinite' }, gc);
+            el('animate', { attributeName: 'r', values: `${p.r + 2};${p.r + 10};${p.r + 2}`, dur: '1.2s', repeatCount: 'indefinite' }, gc);
+            el('circle', { cx: p.cx, cy: p.cy, r: p.r, fill: '#ef444425', stroke: '#ef4444', 'stroke-width': 1.5, 'data-nid': n.id, cursor: 'grab' }, nl);
+          } else {
+            el('circle', { cx: p.cx, cy: p.cy, r: p.r, fill: 'transparent', stroke: '#22c55e', 'stroke-width': 1, opacity: op, 'data-nid': n.id, cursor: 'grab' }, nl);
+          }
+          txt(icons[n.icon] || '📦', { x: p.cx, y: p.cy - 2, 'text-anchor': 'middle', 'font-size': p.r > 14 ? 11 : 9, opacity: op, 'data-nid': n.id, cursor: 'grab' }, nl);
+          txt(n.name, { x: p.cx, y: p.cy + (p.r > 14 ? 11 : 9), 'text-anchor': 'middle', fill: off ? '#fca5a5' : '#64748b', 'font-size': p.r > 14 ? 7 : 6, opacity: op, 'data-nid': n.id, cursor: 'grab' }, nl);
         });
       });
     }
 
+    // 统计
+    const total = Object.keys(allNodes).length;
+    const offline = Object.values(allNodes).filter(n => n.status === 'offline').length;
+    document.getElementById('info').textContent = `${total}个设备 · ${offline}个离线`;
+
     // 图例
-    (function buildLegend() {
-      const legend = document.getElementById('legend');
-      legend.innerHTML = `
-        <h4>设备类型</h4>
-        <div class="row"><span style="font-size:14px">💻</span><span>终端</span></div>
-        <div class="row"><span style="font-size:14px">📡</span><span>通信机</span></div>
-        <div class="row"><span style="font-size:14px">🔀</span><span>路由器</span></div>
-        <div class="sep"></div>
-        <h4>链路类型</h4>
-        <div class="row"><svg width="32" height="6"><line x1="0" y1="3" x2="32" y2="3" stroke="#334155" stroke-width="1" stroke-dasharray="4 2"/></svg><span>内部链路</span></div>
-        <div class="row"><svg width="32" height="6"><line x1="0" y1="3" x2="32" y2="3" stroke="#38bdf8" stroke-width="1.5"/></svg><span>有线路由</span></div>
-        <div class="row"><svg width="32" height="6"><line x1="0" y1="3" x2="32" y2="3" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="3 3"/></svg><span>超短波无线</span></div>
-      `;
-    })();
+    document.getElementById('legend').innerHTML = `
+      <h4>设备类型</h4>
+      <div class="row"><span style="font-size:14px">💻</span><span>终端</span></div>
+      <div class="row"><span style="font-size:14px">📡</span><span>通信机</span></div>
+      <div class="row"><span style="font-size:14px">🔀</span><span>路由器</span></div>
+      <div class="row"><span style="font-size:14px">🛰</span><span>GPS设备</span></div>
+      <div class="sep"></div>
+      <h4>链路类型</h4>
+      <div class="row"><svg width="32" height="6"><line x1="0" y1="3" x2="32" y2="3" stroke="#334155" stroke-width="1" stroke-dasharray="4 2"/></svg><span>内部链路</span></div>
+      <div class="row"><svg width="32" height="6"><line x1="0" y1="3" x2="32" y2="3" stroke="#38bdf8" stroke-width="1.5"/></svg><span>有线路由</span></div>
+      <div class="row"><svg width="32" height="6"><line x1="0" y1="3" x2="32" y2="3" stroke="#fbbf24" stroke-width="1" stroke-dasharray="3 3"/></svg><span>超短波无线</span></div>
+      <div class="sep"></div>
+      <h4>设备状态</h4>
+      <div class="row"><svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="transparent" stroke="#22c55e" stroke-width="1"/></svg><span>在线</span></div>
+      <div class="row"><svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="#ef444425" stroke="#ef4444" stroke-width="1.5"><animate attributeName="opacity" values="0.4;1;0.4" dur="1.2s" repeatCount="indefinite"/></circle></svg><span style="color:#fca5a5">离线</span></div>
+    `;
 
     render();
   </script>
