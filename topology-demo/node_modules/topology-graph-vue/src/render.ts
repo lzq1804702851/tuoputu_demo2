@@ -72,11 +72,11 @@ export function render(svg: SVGSVGElement, state: RenderState, vb: { x: number; 
   const { groups, links, faultMode, faultRelated, linkTypes: ltCfg, faultRelated: fr } = state
   const related = faultMode ? fr : new Set<string>()
 
-  function hasOff(s: string, t: string) {
-    return state.deviceMap.get(s)?.status === 'offline' || state.deviceMap.get(t)?.status === 'offline'
+  function hasRel(s: string, t: string) {
+    return related.has(s) || related.has(t)
   }
-  function gOff(g: ComputedGroup) {
-    return g.subs.some(s => s.devices.some(d => d.status === 'offline')) || g.devices.some(d => d.status === 'offline')
+  function gRel(g: ComputedGroup) {
+    return g.subs.some(s => s.devices.some(d => related.has(d.id))) || g.devices.some(d => related.has(d.id))
   }
 
   // 1) 连线
@@ -84,7 +84,7 @@ export function render(svg: SVGSVGElement, state: RenderState, vb: { x: number; 
     const sp = state.deviceMap.get(lk.source), tp = state.deviceMap.get(lk.target)
     if (!sp || !tp) return
     const cfg = ltCfg[lk.type] || ltCfg['internal'] || { color: '#475569', width: 1, dash: '4 2' }
-    const dim = faultMode && !hasOff(lk.source, lk.target)
+    const dim = faultMode && !hasRel(lk.source, lk.target)
     const isExternal = lk.level === 'external'
     drawLink(sp, tp, cfg, linkLayer, {
       opacity: dim ? 0.06 : (isExternal ? 0.5 : 1),
@@ -94,14 +94,14 @@ export function render(svg: SVGSVGElement, state: RenderState, vb: { x: number; 
 
   // 2) 分组圆
   groups.forEach(g => {
-    const dim = faultMode && !gOff(g)
+    const dim = faultMode && !gRel(g)
     el('circle', { cx: g.x, cy: g.y, r: g.r, fill: 'transparent', stroke: g.color, 'stroke-width': 1.5, 'stroke-dasharray': '6 3', opacity: dim ? 0.05 : 0.5, 'data-gid': g.id, cursor: 'grab' }, circleLayer)
     txt(g.name, { x: g.x, y: g.y - g.r + 14, 'text-anchor': 'middle', fill: g.color, 'font-size': g.r > 80 ? 10 : 9, 'font-weight': 'bold', opacity: dim ? 0.05 : 0.8, 'data-gid': g.id, cursor: 'grab' }, labelLayer)
   })
 
   // 3) 子站圆
   groups.forEach(g => g.subs.forEach(sub => {
-    const dim = faultMode && !sub.devices.some(d => d.status === 'offline')
+    const dim = faultMode && !sub.devices.some(d => related.has(d.id))
     el('circle', { cx: sub.x, cy: sub.y, r: sub.r, fill: 'transparent', stroke: g.color, 'stroke-width': 1, 'stroke-dasharray': '4 2', opacity: dim ? 0.04 : 0.35, 'data-sid': sub.id, cursor: 'grab' }, circleLayer)
     txt(sub.name, { x: sub.x, y: sub.y - sub.r + 12, 'text-anchor': 'middle', fill: g.color, 'font-size': 8, opacity: dim ? 0.04 : 0.6, 'data-sid': sub.id, cursor: 'grab' }, labelLayer)
   }))

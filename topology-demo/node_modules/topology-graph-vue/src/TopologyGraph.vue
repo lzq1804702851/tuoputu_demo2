@@ -7,12 +7,24 @@
       <span class="tg-toolbar-title">拓扑图</span>
       <span class="tg-toolbar-hint">拖拽节点 · 滚轮缩放 · 空白平移</span>
       <span class="tg-toolbar-info">{{ stats }}</span>
+      <input class="tg-search-input" v-model="searchQuery"
+             placeholder="搜索区域/站点/船名"
+             @keydown.enter="onSearch" />
       <button class="tg-fault-btn" :class="{ active: filterMode === 'offline' }" @click="toggleFilter('offline')">
         {{ filterMode === 'offline' ? '退出筛选' : '独显离线设备' }}
       </button>
       <button class="tg-online-btn" :class="{ active: filterMode === 'online' }" @click="toggleFilter('online')">
         {{ filterMode === 'online' ? '退出筛选' : '独显在线设备' }}
       </button>
+    </div>
+
+    <!-- 悬浮信息窗 -->
+    <div v-if="tooltip.visible" class="tg-tooltip" :style="tooltip.style">
+      <h5 :style="{ color: tooltip.color }">{{ tooltip.title }}</h5>
+      <div v-for="item in tooltip.items" :key="item.label" class="tg-tooltip-row">
+        <span class="tg-tooltip-label">{{ item.label }}</span>
+        <span class="tg-tooltip-value">{{ item.value }}</span>
+      </div>
     </div>
 
     <!-- 图例 -->
@@ -49,7 +61,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue'
 import type { TopologyGraphProps, ComputedGroup, ComputedDevice, RenderState } from './types'
 import { defaultDeviceTypes, defaultLinkTypes, defaultGroupTypes } from './defaults'
 import { runForceLayout } from './force'
@@ -67,9 +79,27 @@ const emit = defineEmits<{
 const svgEl = ref<SVGSVGElement>()
 const container = ref<HTMLDivElement>()
 
-const filterMode = ref<'offline' | 'online' | null>(null)
+const filterMode = ref<'offline' | 'online' | 'search' | null>(null)
+const searchQuery = ref('')
+
+function onSearch() {
+  if (!searchQuery.value.trim()) {
+    filterMode.value = null
+  } else {
+    filterMode.value = 'search'
+  }
+  doRender()
+}
+
+watch(searchQuery, (v) => {
+  if (!v && filterMode.value === 'search') {
+    filterMode.value = null
+    doRender()
+  }
+})
 
 function toggleFilter(mode: 'offline' | 'online') {
+  searchQuery.value = ''
   filterMode.value = filterMode.value === mode ? null : mode
   doRender()
 }
@@ -148,12 +178,35 @@ function computeLayout() {
 const faultRelated = computed(() => {
   if (!filterMode.value) return new Set<string>()
   const s = new Set<string>()
-  const targetStatus = filterMode.value
-  deviceMap.forEach((d, id) => { if (d.status === targetStatus) s.add(id) })
-  layoutLinks.forEach(lk => {
-    if (s.has(lk.source) || deviceMap.get(lk.source)?.status === targetStatus) s.add(lk.target)
-    if (s.has(lk.target) || deviceMap.get(lk.target)?.status === targetStatus) s.add(lk.source)
-  })
+
+  if (filterMode.value === 'search') {
+    const q = searchQuery.value.trim().toLowerCase()
+    const matched = new Set<string>()
+    layoutGroups.forEach(g => {
+      const gMatch = g.name.toLowerCase().includes(q)
+      g.subs.forEach(sub => {
+        const subMatch = sub.name.toLowerCase().includes(q)
+        if (gMatch || subMatch) {
+          sub.devices.forEach(d => { matched.add(d.id); s.add(d.id) })
+        }
+      })
+      if (gMatch) {
+        g.devices.forEach(d => { matched.add(d.id); s.add(d.id) })
+      }
+    })
+    // 只扩展一跳：仅用 matched 集合查找，不链式扩散
+    layoutLinks.forEach(lk => {
+      if (matched.has(lk.source)) s.add(lk.target)
+      if (matched.has(lk.target)) s.add(lk.source)
+    })
+  } else {
+    const targetStatus = filterMode.value
+    deviceMap.forEach((d, id) => { if (d.status === targetStatus) s.add(id) })
+    layoutLinks.forEach(lk => {
+      if (s.has(lk.source) || deviceMap.get(lk.source)?.status === targetStatus) s.add(lk.target)
+      if (s.has(lk.target) || deviceMap.get(lk.target)?.status === targetStatus) s.add(lk.source)
+    })
+  }
   return s
 })
 
@@ -182,6 +235,78 @@ function doRender() {
     groupTypes: finalGroupTypes.value,
     legend: mergedLegend.value,
   }, vb)
+}
+
+/* ========== 悬浮信息窗 ========== */
+const tooltip = reactive({
+  visible: false,
+  title: '',
+  color: '#38bdf8',
+  items: [] as { label: string; value: string }[],
+  style: {} as Record<string, string>,
+})
+
+function onTooltipShow(e: MouseEvent) {
+  const t = e.target as Element
+  const gid = t.getAttribute('data-gid')
+  const sid = t.getAttribute('data-sid')
+
+  let title = '', color = '#38bdf8', items: { label: string; value: string }[] = []
+
+  if (gid && groupLookup.has(gid)) {
+    const { group: g } = groupLookup.get(gid)!
+    title = g.name
+    color = g.color
+    const allDevs = [...g.subs.flatMap(s => s.devices), ...g.devices]
+    const online = allDevs.filter(d => d.status !== 'offline').length
+    const offline = allDevs.length - online
+    const groupTypeNames: Record<string, string> = { island: '岛屿', ship: '船舶', 'route-station': '路由站', aircraft: '飞行器', buoy: '浮标', satellite: '卫星', vehicle: '车辆', station: '站点' }
+    items = [
+      { label: '类型', value: groupTypeNames[g.type] ?? g.type },
+    ]
+    if (g.subs.length > 0) items.push({ label: '子站', value: `${g.subs.length} 个` })
+    items.push(
+      { label: '设备', value: `${allDevs.length} 个` },
+      { label: '在线', value: `${online} 个` },
+      { label: '离线', value: `${offline} 个` },
+    )
+  } else if (sid) {
+    for (const g of layoutGroups) {
+      const sub = g.subs.find(s => s.id === sid)
+      if (sub) {
+        title = sub.name
+        color = g.color
+        const online = sub.devices.filter(d => d.status !== 'offline').length
+        const offline = sub.devices.length - online
+        items = [
+          { label: '所属', value: g.name },
+          { label: '设备', value: `${sub.devices.length} 个` },
+          { label: '在线', value: `${online} 个` },
+          { label: '离线', value: `${offline} 个` },
+        ]
+        break
+      }
+    }
+  } else {
+    return
+  }
+
+  tooltip.title = title
+  tooltip.color = color
+  tooltip.items = items
+
+  if (!container.value) return
+  const cr = container.value.getBoundingClientRect()
+  let left = e.clientX - cr.left + 14
+  let top = e.clientY - cr.top + 14
+  if (left + 180 > cr.width) left = e.clientX - cr.left - 190
+  if (top + 140 > cr.height) top = e.clientY - cr.top - 140
+  tooltip.style = { left: `${left}px`, top: `${top}px` }
+  tooltip.visible = true
+}
+
+function onTooltipHide() {
+  tooltip.visible = false
 }
 
 /* ========== 交互 ========== */
@@ -314,6 +439,8 @@ onMounted(async () => {
     vb.h = (container.value.clientHeight || 800) - (props.showToolbar ? 48 : 0)
     svgEl.value.addEventListener('mousedown', onDown)
     svgEl.value.addEventListener('wheel', onWheel, { passive: false })
+    svgEl.value.addEventListener('mouseover', onTooltipShow)
+    svgEl.value.addEventListener('mouseout', onTooltipHide)
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
     computeLayout()
@@ -359,4 +486,20 @@ watch(() => props.data, () => { computeLayout(); doRender() }, { deep: true })
 .tg-legend-row svg { flex-shrink: 0; }
 .tg-legend-sep { border-top: 1px solid #1e293b; margin: 8px 0; }
 .tg-legend-icon { font-size: 14px; width: 20px; text-align: center; }
+.tg-search-input {
+  background: #0f172a; border: 1px solid #1e3a5f; color: #cbd5e1;
+  padding: 4px 12px; border-radius: 6px; font-size: 13px; width: 160px;
+  font-family: "Microsoft YaHei", sans-serif; outline: none; transition: border-color 0.2s;
+}
+.tg-search-input::placeholder { color: #475569; }
+.tg-search-input:focus { border-color: #38bdf8; }
+.tg-tooltip {
+  position: absolute; z-index: 20; padding: 10px 14px; min-width: 140px;
+  background: #0f172af0; border: 1px solid #1e3a5f; border-radius: 8px;
+  pointer-events: none; user-select: none; backdrop-filter: blur(6px);
+}
+.tg-tooltip h5 { font-size: 13px; margin: 0 0 8px 0; font-weight: 600; }
+.tg-tooltip-row { display: flex; justify-content: space-between; font-size: 12px; color: #94a3b8; margin: 3px 0; }
+.tg-tooltip-label { color: #64748b; }
+.tg-tooltip-value { color: #e2e8f0; font-weight: 500; }
 </style>
