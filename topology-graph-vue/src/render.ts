@@ -76,19 +76,19 @@ function renderContainmentCircles(
       cx: cn.x, cy: cn.y, r: cn.r,
       fill: isOffline ? '#ef444410' : isWarning ? '#f59e0b08' : 'transparent',
       stroke: isOffline ? '#ef4444' : isWarning ? '#f59e0b' : statusColor,
-      'stroke-width': Math.max(0.8, 2 - cn.depth * 0.3),
+      'stroke-width': Math.max(0.1, 0.3 - cn.depth * 0.05),
       opacity,
       'data-cid': cn.node.uuid,
       cursor: 'grab',
     }, layer)
 
     // 标签（大圆正上方，名称前加类型图标）
-    const fontSize = Math.max(7, 11 - cn.depth * 1.5)
+    const fontSize = Math.max(0.2, 0.5 - cn.depth * 0.1)
     const typeIcon = nodeTypes[cn.node.type_id]?.icon || ''
     const displayName = typeIcon + ' ' + cn.node.name
     txt(displayName, {
       x: cn.x,
-      y: cn.y - cn.r - 4,
+      y: cn.y - cn.r - 0.2,
       'text-anchor': 'middle',
       fill: isOffline ? '#fca5a5' : isWarning ? '#fbbf24' : '#38bdf8',
       'font-size': fontSize,
@@ -126,10 +126,10 @@ function drawLink(
 
   const dx = toX - fromX, dy = toY - fromY
   const len = Math.sqrt(dx * dx + dy * dy) || 1
-  const x1 = fromX + dx / len * (fromR + 2)
-  const y1 = fromY + dy / len * (fromR + 2)
-  const x2 = toX - dx / len * (toR + 2)
-  const y2 = toY - dy / len * (toR + 2)
+  const x1 = fromX + dx / len * (fromR + 0.5)
+  const y1 = fromY + dy / len * (fromR + 0.5)
+  const x2 = toX - dx / len * (toR + 0.5)
+  const y2 = toY - dy / len * (toR + 0.5)
   const op = extra.opacity ?? 1
 
   // 稍微弯曲以避免重叠
@@ -161,10 +161,10 @@ function drawLink(
     const mx = (x1 + x2) / 2 - dy * curve * 0.5
     const my = (y1 + y2) / 2 + dx * curve * 0.5
     txt('✕', {
-      x: mx, y: my + 3,
+      x: mx, y: my + 1,
       'text-anchor': 'middle',
       fill: '#ef4444',
-      'font-size': 8,
+      'font-size': 0.3,
       'font-weight': 'bold',
       opacity: op * 0.8,
       'data-rid': cr.relation.uuid,
@@ -172,16 +172,16 @@ function drawLink(
   }
 
   // 关系名称标签（在连线中点，避开状态图标）
-  if (cr.relation.name && len > 60) {
+  if (cr.relation.name && len > 20) {
     const hasStatusIcon = cr.relation.status === 'disconnected' || cr.relation.status === 'offline'
     const mx = (x1 + x2) / 2 - dy * curve * 0.5
     const my = (y1 + y2) / 2 + dx * curve * 0.5
     const labelFill = (cr.relation.status === 'disconnected' || cr.relation.status === 'offline') ? '#ef4444' : cfg.color
-    txt(cr.relation.name, {
-      x: mx, y: my - (hasStatusIcon ? 10 : 4),
+      txt(cr.relation.name, {
+      x: mx, y: my - (hasStatusIcon ? 0.6 : 0.3),
       'text-anchor': 'middle',
       fill: labelFill,
-      'font-size': 6,
+      'font-size': 0.2,
       opacity: op * 0.6,
       'data-rid': cr.relation.uuid,
     }, layer)
@@ -207,7 +207,7 @@ function renderNode(
     cx: x, cy: y, r,
     fill: isOffline ? '#ef444425' : 'transparent',
     stroke: isOffline ? '#ef4444' : statusColor,
-    'stroke-width': isOffline ? 1.5 : 1,
+    'stroke-width': isOffline ? 0.2 : 0.1,
     opacity: op,
     'data-nid': node.uuid,
     cursor: 'grab',
@@ -215,9 +215,9 @@ function renderNode(
 
   // 图标
   txt(icon, {
-    x, y: y - 1,
+    x, y: y - 0.5,
     'text-anchor': 'middle',
-    'font-size': r > 14 ? 11 : 9,
+    'font-size': r > 1 ? 0.3 : 0.2,
     opacity: op,
     'data-nid': node.uuid,
     cursor: 'grab',
@@ -225,10 +225,10 @@ function renderNode(
 
   // 节点名称（圆圈正上方）
   txt(node.name, {
-    x, y: y - r - 4,
+    x, y: y - r - 0.1,
     'text-anchor': 'middle',
     fill: isOffline ? '#fca5a5' : '#94a3b8',
-    'font-size': 7,
+    'font-size': 0.2,
     opacity: op,
     'data-nid': node.uuid,
     cursor: 'grab',
@@ -244,10 +244,10 @@ function renderNode(
 
     labels.forEach((item, idx) => {
       txt(`${item.key}: ${item.value}`, {
-        x, y: y + r + 18 + idx * 8,
+        x, y: y + r + 0.8 + idx * 0.5,
         'text-anchor': 'middle',
         fill: '#64748b',
-        'font-size': 6,
+        'font-size': 0.2,
         opacity: op * 0.7,
         'data-nid': node.uuid,
         cursor: 'grab',

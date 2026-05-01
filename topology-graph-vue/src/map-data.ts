@@ -4,7 +4,7 @@
  *  多层渲染：陆地填充 → 海岸线 → 国界线 → 经纬网格
  * ================================================================ */
 
-import worldTopo from 'world-atlas/countries-50m.json'
+import worldTopo from 'world-atlas/countries-10m.json'
 import { feature } from 'topojson-client'
 import type { Topology } from 'topojson-specification'
 import { geoPath, geoGraticule10 } from 'd3-geo'

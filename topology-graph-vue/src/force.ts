@@ -18,8 +18,8 @@ import type {
 import { createProjection } from './projection'
 
 const MAX_DEPTH = 5
-const NODE_MARGIN = 6
-const CONTAIN_PADDING = 20
+const NODE_MARGIN = 0.3
+const CONTAIN_PADDING = 1.5
 
 /* ========== 包含树构建 ========== */
 
