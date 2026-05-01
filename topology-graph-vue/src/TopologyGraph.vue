@@ -80,7 +80,7 @@ import type { TopologyGraphProps, ComputedNode, RenderState, ProjectionConfig } 
 import { defaultNodeTypes, defaultRelationTypes } from './defaults'
 import { runForceLayout } from './force'
 import { render } from './render'
-import { southChinaSeaFeatures, projectFeatures, type MapFeature } from './map-data'
+import { getWorldFeatures, projectFeatures, type ProjectedFeature } from './map-data'
 import { createProjection } from './projection'
 
 const props = withDefaults(defineProps<TopologyGraphProps>(), {
@@ -137,7 +137,7 @@ const filteredRelationTypes = computed(() => {
   let layoutRelations: RenderState['relations'] = []
   let layoutContainmentTree: RenderState['containmentTree'] = []
   let nodeMap = new Map<string, ComputedNode>()
-  let projectedFeatures: MapFeature[] = []
+  let projectedFeatures: ProjectedFeature[] = []
 
   /** 子节点 → 父节点 UUID 映射（用于拖拽约束） */
   let parentMap = new Map<string, string>() // childUuid -> parentUuid
@@ -177,10 +177,9 @@ function computeLayout() {
 
   const project = createProjection(props.data.nodes, projConfig)
 
-  // 投影地图数据
+  // 投影全球地图数据
   projectedFeatures = projectFeatures(
-    // 使用更大的范围来投影地图
-    southChinaSeaFeatures,
+    getWorldFeatures(),
     project,
   )
 
@@ -219,7 +218,7 @@ function computeLayout() {
 
   updateStats()
 
-  // 自动适配 viewBox（考虑包含圈半径）
+  // 自动适配 viewBox（展示节点周围更大范围的地图背景）
   if (layoutNodes.length === 0) return
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
   layoutNodes.forEach(cn => {
@@ -229,10 +228,14 @@ function computeLayout() {
     if (cn.x + pad > maxX) maxX = cn.x + pad
     if (cn.y + pad > maxY) maxY = cn.y + pad
   })
-  vb.x = minX - 40
-  vb.y = minY - 40
-  vb.w = maxX - minX + 80
-  vb.h = maxY - minY + 80
+  // 扩展 viewBox 以展示更多地图背景（8倍范围）
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2
+  const halfW = Math.max((maxX - minX) * 4 + 60, projConfig.width * 0.3)
+  const halfH = Math.max((maxY - minY) * 4 + 60, projConfig.height * 0.3)
+  vb.x = cx - halfW
+  vb.y = cy - halfH
+  vb.w = halfW * 2
+  vb.h = halfH * 2
 }
 
 /* ========== 筛选关联 ========== */

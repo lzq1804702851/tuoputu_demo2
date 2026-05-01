@@ -10,7 +10,7 @@ import type {
   RenderState, ComputedNode, ComputedRelation, ContainmentNode,
   RelationTypeConfig, LegendConfig, NodeLabelKeys, TopoNode, NodeTypeConfig,
 } from './types'
-import { southChinaSeaFeatures, projectFeatures, type MapFeature } from './map-data'
+import { getWorldFeatures, projectFeatures, type ProjectedFeature } from './map-data'
 import { statusColors } from './defaults'
 
 const NS = 'http://www.w3.org/2000/svg'
@@ -30,9 +30,18 @@ function txt(content: string, attrs: Record<string, string | number | undefined>
   return t
 }
 
-/* ========== 地图底图渲染 ========== */
-function renderMap(layer: Element, projectedFeatures: MapFeature[]) {
+/* ========== 地图底图渲染（分层） ========== */
+function renderMap(mapLayer: Element, projectedFeatures: ProjectedFeature[]) {
+  // 创建子图层，确保渲染顺序正确
+  const layers: Record<string, Element> = {
+    graticule: el('g', { class: 'tg-map-graticule' }, mapLayer),
+    land: el('g', { class: 'tg-map-land' }, mapLayer),
+    borders: el('g', { class: 'tg-map-borders' }, mapLayer),
+    coastline: el('g', { class: 'tg-map-coastline' }, mapLayer),
+  }
+
   for (const f of projectedFeatures) {
+    const targetLayer = layers[f.layer] || mapLayer
     const attrs: Record<string, string | number | undefined> = {
       d: f.path,
     }
@@ -41,8 +50,9 @@ function renderMap(layer: Element, projectedFeatures: MapFeature[]) {
     if (f.style.stroke) attrs.stroke = f.style.stroke
     if (f.style.strokeWidth) attrs['stroke-width'] = f.style.strokeWidth
     if (f.style.opacity !== undefined) attrs.opacity = f.style.opacity
+    if (f.style.strokeDasharray) attrs['stroke-dasharray'] = f.style.strokeDasharray
 
-    el('path', attrs, layer)
+    el('path', attrs, targetLayer)
   }
 }
 
@@ -251,7 +261,7 @@ export function render(
   svg: SVGSVGElement,
   state: RenderState,
   vb: { x: number; y: number; w: number; h: number },
-  projectedMapFeatures: MapFeature[],
+  projectedMapFeatures: ProjectedFeature[],
   nodeLabels?: NodeLabelKeys,
 ) {
   while (svg.firstChild) svg.removeChild(svg.firstChild)
