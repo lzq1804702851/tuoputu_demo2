@@ -56,7 +56,7 @@ export const mockData: TopologyData = {
     { uuid: 'cm-tj',   name: '台江通信机',     type_id: 'comm', status: 'online',  lng: 119.310, lat: 26.068, extra: { ip: '10.0.1.2', frequency: '2.4GHz' } },
     { uuid: 'cm-cs',   name: '仓山通信机',     type_id: 'comm', status: 'online',  lng: 119.320, lat: 26.040, extra: { ip: '10.0.1.3', frequency: '5GHz' } },
     { uuid: 'cm-cs2',  name: '仓山通信机2',    type_id: 'comm', status: 'warning', lng: 119.335, lat: 26.025, extra: { ip: '10.0.1.12', frequency: '卫星', alert: '信号弱' } },
-     uuid: 'cm-ja',   name: '晋安通信机',     type_id: 'comm', status: 'online',  lng: 119.350, lat: 26.082, extra: { ip: '10.0.1.4', frequency: '5GHz' } },
+    { uuid: 'cm-ja',   name: '晋安通信机',     type_id: 'comm', status: 'online',  lng: 119.350, lat: 26.082, extra: { ip: '10.0.1.4', frequency: '5GHz' } },
     { uuid: 'cm-mw',   name: '马尾通信机',     type_id: 'comm', status: 'online',  lng: 119.458, lat: 25.998, extra: { ip: '10.0.1.5', frequency: 'VHF' } },
     { uuid: 'cm-mw2',  name: '马尾通信机2',    type_id: 'comm', status: 'online',  lng: 119.468, lat: 26.012, extra: { ip: '10.0.1.13', frequency: '5GHz' } },
     { uuid: 'cm-cl',   name: '长乐通信机',     type_id: 'comm', status: 'online',  lng: 119.528, lat: 25.958, extra: { ip: '10.0.1.6', frequency: '卫星' } },
