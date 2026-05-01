@@ -8,7 +8,7 @@
       <span class="tg-toolbar-hint">拖拽节点 · 滚轮缩放 · 空白平移</span>
       <span class="tg-toolbar-info">{{ stats }}</span>
       <input class="tg-search-input" v-model="searchQuery"
-             placeholder="搜索区域/站点/船名"
+             placeholder="搜索节点名称"
              @keydown.enter="onSearch" />
       <button class="tg-fault-btn" :class="{ active: filterMode === 'offline' }" @click="toggleFilter('offline')">
         {{ filterMode === 'offline' ? '退出筛选' : '独显离线设备' }}
@@ -29,24 +29,24 @@
 
     <!-- 图例 -->
     <div v-if="mergedLegend.show" class="tg-legend" :style="legendPosStyle">
-      <template v-if="filteredDeviceTypes.length">
-        <h4>{{ mergedLegend.sectionTitles?.devices ?? '设备类型' }}</h4>
-        <div v-for="key in filteredDeviceTypes" :key="key" class="tg-legend-row">
-          <span class="tg-legend-icon">{{ finalDeviceTypes[key]?.icon }}</span>
-          <span>{{ finalDeviceTypes[key]?.name ?? key }}</span>
+      <template v-if="filteredNodeTypes.length">
+        <h4>{{ mergedLegend.sectionTitles?.nodes ?? '节点类型' }}</h4>
+        <div v-for="key in filteredNodeTypes" :key="key" class="tg-legend-row">
+          <span class="tg-legend-icon">{{ finalNodeTypes[key]?.icon }}</span>
+          <span>{{ finalNodeTypes[key]?.name ?? key }}</span>
         </div>
         <div class="tg-legend-sep"></div>
       </template>
-      <template v-if="filteredLinkTypes.length">
-        <h4>{{ mergedLegend.sectionTitles?.links ?? '链路类型' }}</h4>
-        <div v-for="key in filteredLinkTypes" :key="key" class="tg-legend-row">
-          <svg width="32" height="6"><line x1="0" y1="3" x2="32" y2="3" :stroke="finalLinkTypes[key]?.color" :stroke-width="finalLinkTypes[key]?.width" :stroke-dasharray="finalLinkTypes[key]?.dash" /></svg>
-          <span>{{ finalLinkTypes[key]?.name ?? key }}</span>
+      <template v-if="filteredRelationTypes.length">
+        <h4>{{ mergedLegend.sectionTitles?.relations ?? '关系类型' }}</h4>
+        <div v-for="key in filteredRelationTypes" :key="key" class="tg-legend-row">
+          <svg width="32" height="6"><line x1="0" y1="3" x2="32" y2="3" :stroke="finalRelationTypes[key]?.color" :stroke-width="finalRelationTypes[key]?.width" :stroke-dasharray="finalRelationTypes[key]?.dash" /></svg>
+          <span>{{ finalRelationTypes[key]?.name ?? key }}</span>
         </div>
         <div class="tg-legend-sep"></div>
       </template>
       <template v-if="mergedLegend.showStatus !== false">
-        <h4>{{ mergedLegend.sectionTitles?.status ?? '设备状态' }}</h4>
+        <h4>{{ mergedLegend.sectionTitles?.status ?? '状态' }}</h4>
         <div class="tg-legend-row">
           <svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="transparent" stroke="#22c55e" stroke-width="1" /></svg>
           <span>在线</span>
@@ -62,18 +62,23 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue'
-import type { TopologyGraphProps, ComputedGroup, ComputedDevice, RenderState } from './types'
-import { defaultDeviceTypes, defaultLinkTypes, defaultGroupTypes } from './defaults'
+import type { TopologyGraphProps, ComputedNode, RenderState, ProjectionConfig } from './types'
+import { defaultNodeTypes, defaultRelationTypes } from './defaults'
 import { runForceLayout } from './force'
 import { render } from './render'
+import { southChinaSeaFeatures, projectFeatures, type MapFeature } from './map-data'
+import { createProjection } from './projection'
 
 const props = withDefaults(defineProps<TopologyGraphProps>(), {
   showToolbar: true,
   legend: () => ({}),
+  mapCenterLng: 110,
+  mapCenterLat: 18,
+  mapZoom: 1,
 })
 
 const emit = defineEmits<{
-  (e: 'node-click', device: ComputedDevice): void
+  (e: 'node-click', node: ComputedNode): void
 }>()
 
 const svgEl = ref<SVGSVGElement>()
@@ -83,19 +88,13 @@ const filterMode = ref<'offline' | 'online' | 'search' | null>(null)
 const searchQuery = ref('')
 
 function onSearch() {
-  if (!searchQuery.value.trim()) {
-    filterMode.value = null
-  } else {
-    filterMode.value = 'search'
-  }
+  if (!searchQuery.value.trim()) { filterMode.value = null }
+  else { filterMode.value = 'search' }
   doRender()
 }
 
 watch(searchQuery, (v) => {
-  if (!v && filterMode.value === 'search') {
-    filterMode.value = null
-    doRender()
-  }
+  if (!v && filterMode.value === 'search') { filterMode.value = null; doRender() }
 })
 
 function toggleFilter(mode: 'offline' | 'online') {
@@ -105,106 +104,147 @@ function toggleFilter(mode: 'offline' | 'online') {
 }
 
 /* ========== 合并配置 ========== */
-const finalDeviceTypes = computed(() => ({ ...defaultDeviceTypes, ...props.deviceTypes }))
-const finalLinkTypes = computed(() => ({ ...defaultLinkTypes, ...props.linkTypes }))
-const finalGroupTypes = computed(() => ({ ...defaultGroupTypes, ...props.groupTypes }))
+const finalNodeTypes = computed(() => ({ ...defaultNodeTypes, ...props.nodeTypes }))
+const finalRelationTypes = computed(() => ({ ...defaultRelationTypes, ...props.relationTypes }))
 const mergedLegend = computed(() => props.legend ?? {})
 
-const groupColors = computed(() => {
-  const m: Record<string, string> = {}
-  for (const [k, v] of Object.entries(finalGroupTypes.value)) m[k] = v.color
-  return m
+/* ========== 图例过滤 ========== */
+const filteredNodeTypes = computed(() => {
+  const all = Object.keys(finalNodeTypes.value)
+  return mergedLegend.value.nodeTypes ?? all
 })
-const deviceIcons = computed(() => {
-  const m: Record<string, string> = {}
-  for (const [k, v] of Object.entries(finalDeviceTypes.value)) m[k] = v.icon
-  return m
+const filteredRelationTypes = computed(() => {
+  const all = Object.keys(finalRelationTypes.value)
+  return mergedLegend.value.relationTypes ?? all
 })
 
-/* ========== 图例过滤 ========== */
-const filteredDeviceTypes = computed(() => {
-  const all = Object.keys(finalDeviceTypes.value)
-  return mergedLegend.value.deviceTypes ?? all
-})
-const filteredLinkTypes = computed(() => {
-  const all = Object.keys(finalLinkTypes.value)
-  return mergedLegend.value.linkTypes ?? all
-})
+/* ========== 布局状态 ========== */
+  let layoutNodes: ComputedNode[] = []
+  let layoutRelations: RenderState['relations'] = []
+  let layoutContainmentTree: RenderState['containmentTree'] = []
+  let nodeMap = new Map<string, ComputedNode>()
+  let projectedFeatures: MapFeature[] = []
+
+  /** 子节点 → 父节点 UUID 映射（用于拖拽约束） */
+  let parentMap = new Map<string, string>() // childUuid -> parentUuid
+
+  /** 父节点 → 子节点 UUID 列表（用于拖拽容器时移动所有子节点） */
+  let childrenMap = new Map<string, string[]>() // parentUuid -> [childUuid, ...]
+
+  /** 递归收集所有后代节点 UUID */
+  function getAllDescendants(uuid: string): string[] {
+    const result: string[] = []
+    const kids = childrenMap.get(uuid)
+    if (kids) {
+      for (const kid of kids) {
+        result.push(kid)
+        result.push(...getAllDescendants(kid))
+      }
+    }
+    return result
+  }
+
+/* ========== viewBox ========== */
+const vb = { x: 0, y: 0, w: 1200, h: 800 }
 
 /* ========== 布局计算 ========== */
-let layoutGroups: ComputedGroup[] = []
-let layoutLinks: RenderState['links'] = []
-let deviceMap = new Map<string, ComputedDevice>()
-let groupLookup = new Map<string, { group: ComputedGroup; subs: ComputedGroup['subs'] }>()
-
 function computeLayout() {
   if (!container.value) return
   const w = container.value.clientWidth || 1200
-  const h = container.value.clientHeight || 800
-  // 用更大虚拟画布排布，防止节点溢出
-  const vw = w * 1.8, vh = h * 1.8
-  const result = runForceLayout(
-    props.data, groupColors.value, {}, deviceIcons.value, vw, vh,
-  )
-  layoutGroups = result.groups
-  layoutLinks = result.links
+  const h = (container.value.clientHeight || 800) - (props.showToolbar ? 48 : 0)
 
-  deviceMap.clear()
-  groupLookup.clear()
-  layoutGroups.forEach(g => {
-    groupLookup.set(g.id, { group: g, subs: g.subs })
-    g.subs.forEach(s => s.devices.forEach(d => deviceMap.set(d.id, d)))
-    g.devices.forEach(d => deviceMap.set(d.id, d))
-  })
+  const projConfig: ProjectionConfig = {
+    centerLng: props.mapCenterLng ?? 110,
+    centerLat: props.mapCenterLat ?? 18,
+    zoom: props.mapZoom ?? 1,
+    width: w * 1.5,
+    height: h * 1.5,
+  }
+
+  const project = createProjection(props.data.nodes, projConfig)
+
+  // 投影地图数据
+  projectedFeatures = projectFeatures(
+    // 使用更大的范围来投影地图
+    southChinaSeaFeatures,
+    project,
+  )
+
+  // 力布局计算
+  const result = runForceLayout(
+    props.data,
+    finalNodeTypes.value,
+    finalRelationTypes.value,
+    projConfig,
+  )
+
+  layoutNodes = result.nodes
+  layoutRelations = result.relations
+  layoutContainmentTree = result.containmentTree
+
+  nodeMap.clear()
+  layoutNodes.forEach(cn => nodeMap.set(cn.node.uuid, cn))
+
+  // 构建父子关系映射（从包含树递归提取）
+  parentMap.clear()
+  childrenMap.clear()
+  function buildParentChildMap(tree: RenderState['containmentTree'], parentId?: string) {
+    for (const cn of tree) {
+      if (parentId) {
+        parentMap.set(cn.node.uuid, parentId)
+        const kids = childrenMap.get(parentId) || []
+        kids.push(cn.node.uuid)
+        childrenMap.set(parentId, kids)
+      }
+      if (cn.children.length > 0) {
+        buildParentChildMap(cn.children, cn.node.uuid)
+      }
+    }
+  }
+  buildParentChildMap(layoutContainmentTree)
+
   updateStats()
 
-  // 自动适配 viewBox 包含所有节点
-  if (layoutGroups.length === 0) return
+  // 自动适配 viewBox（考虑包含圈半径）
+  if (layoutNodes.length === 0) return
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-  layoutGroups.forEach(g => {
-    const pad = g.r + 20
-    if (g.x - pad < minX) minX = g.x - pad
-    if (g.y - pad < minY) minY = g.y - pad
-    if (g.x + pad > maxX) maxX = g.x + pad
-    if (g.y + pad > maxY) maxY = g.y + pad
+  layoutNodes.forEach(cn => {
+    const pad = cn.isContainer ? (cn.containerR || cn.r) + 30 : cn.r + 30
+    if (cn.x - pad < minX) minX = cn.x - pad
+    if (cn.y - pad < minY) minY = cn.y - pad
+    if (cn.x + pad > maxX) maxX = cn.x + pad
+    if (cn.y + pad > maxY) maxY = cn.y + pad
   })
-  vb.x = minX
-  vb.y = minY
-  vb.w = maxX - minX
-  vb.h = maxY - minY
+  vb.x = minX - 40
+  vb.y = minY - 40
+  vb.w = maxX - minX + 80
+  vb.h = maxY - minY + 80
 }
 
 /* ========== 筛选关联 ========== */
-const faultRelated = computed(() => {
+const filterRelated = computed(() => {
   if (!filterMode.value) return new Set<string>()
   const s = new Set<string>()
 
   if (filterMode.value === 'search') {
     const q = searchQuery.value.trim().toLowerCase()
     const matched = new Set<string>()
-    layoutGroups.forEach(g => {
-      const gMatch = g.name.toLowerCase().includes(q)
-      g.subs.forEach(sub => {
-        const subMatch = sub.name.toLowerCase().includes(q)
-        if (gMatch || subMatch) {
-          sub.devices.forEach(d => { matched.add(d.id); s.add(d.id) })
-        }
-      })
-      if (gMatch) {
-        g.devices.forEach(d => { matched.add(d.id); s.add(d.id) })
-      }
+    layoutNodes.forEach(cn => {
+      if (cn.node.name.toLowerCase().includes(q)) matched.add(cn.node.uuid)
     })
-    // 只扩展一跳：仅用 matched 集合查找，不链式扩散
-    layoutLinks.forEach(lk => {
-      if (matched.has(lk.source)) s.add(lk.target)
-      if (matched.has(lk.target)) s.add(lk.source)
+    matched.forEach(id => s.add(id))
+    layoutRelations.forEach(cr => {
+      if (matched.has(cr.relation.from_id)) s.add(cr.relation.to_id)
+      if (matched.has(cr.relation.to_id)) s.add(cr.relation.from_id)
     })
   } else {
     const targetStatus = filterMode.value
-    deviceMap.forEach((d, id) => { if (d.status === targetStatus) s.add(id) })
-    layoutLinks.forEach(lk => {
-      if (s.has(lk.source) || deviceMap.get(lk.source)?.status === targetStatus) s.add(lk.target)
-      if (s.has(lk.target) || deviceMap.get(lk.target)?.status === targetStatus) s.add(lk.source)
+    layoutNodes.forEach(cn => {
+      if (cn.node.status === targetStatus) s.add(cn.node.uuid)
+    })
+    layoutRelations.forEach(cr => {
+      if (s.has(cr.relation.from_id)) s.add(cr.relation.to_id)
+      if (s.has(cr.relation.to_id)) s.add(cr.relation.from_id)
     })
   }
   return s
@@ -213,28 +253,48 @@ const faultRelated = computed(() => {
 /* ========== 统计 ========== */
 const stats = ref('')
 function updateStats() {
-  let total = 0, off = 0
-  deviceMap.forEach(d => { total++; if (d.status === 'offline') off++ })
-  stats.value = `${total}个设备 · ${off}个离线`
+  let total = layoutNodes.length
+  let off = layoutNodes.filter(cn => cn.node.status === 'offline').length
+  stats.value = `${total}个节点 · ${off}个离线`
 }
 
-/* ========== viewBox ========== */
-const vb = { x: 0, y: 0, w: 1200, h: 800 }
-
 /* ========== 渲染 ========== */
+
+/** 递归更新包含树中节点的位置（拖拽后同步） */
+function updateContainmentTreePos(tree: RenderState['containmentTree']) {
+  for (const cn of tree) {
+    const node = nodeMap.get(cn.node.uuid)
+    if (node) { cn.x = node.x; cn.y = node.y }
+    if (cn.children.length > 0) updateContainmentTreePos(cn.children)
+  }
+}
+
 function doRender() {
-  if (!svgEl.value || layoutGroups.length === 0) return
-  render(svgEl.value, {
-    groups: layoutGroups,
-    links: layoutLinks,
-    deviceMap,
-    faultMode: !!filterMode.value,
-    faultRelated: faultRelated.value,
-    deviceTypes: finalDeviceTypes.value,
-    linkTypes: finalLinkTypes.value,
-    groupTypes: finalGroupTypes.value,
+  if (!svgEl.value || layoutNodes.length === 0) return
+
+  // 刷新连线坐标（拖拽后节点位置变了，连线要跟着动）
+  layoutRelations.forEach(cr => {
+    const from = nodeMap.get(cr.relation.from_id)
+    const to = nodeMap.get(cr.relation.to_id)
+    if (from) { cr.fromX = from.x; cr.fromY = from.y; cr.fromR = from.isContainer ? (from.containerR || from.r) : from.r }
+    if (to) { cr.toX = to.x; cr.toY = to.y; cr.toR = to.isContainer ? (to.containerR || to.r) : to.r }
+  })
+
+  // 刷新包含圈坐标
+  updateContainmentTreePos(layoutContainmentTree)
+
+  const state: RenderState = {
+    nodes: layoutNodes,
+    relations: layoutRelations,
+    containmentTree: layoutContainmentTree,
+    nodeMap,
+    filterMode: filterMode.value,
+    filterRelated: filterRelated.value,
+    nodeTypes: finalNodeTypes.value,
+    relationTypes: finalRelationTypes.value,
     legend: mergedLegend.value,
-  }, vb)
+  }
+  render(svgEl.value, state, vb, projectedFeatures, props.nodeLabels)
 }
 
 /* ========== 悬浮信息窗 ========== */
@@ -248,43 +308,83 @@ const tooltip = reactive({
 
 function onTooltipShow(e: MouseEvent) {
   const t = e.target as Element
-  const gid = t.getAttribute('data-gid')
-  const sid = t.getAttribute('data-sid')
+  const nid = t.getAttribute('data-nid')
+  const rid = t.getAttribute('data-rid')
+  const cid = t.getAttribute('data-cid')
 
   let title = '', color = '#38bdf8', items: { label: string; value: string }[] = []
 
-  if (gid && groupLookup.has(gid)) {
-    const { group: g } = groupLookup.get(gid)!
-    title = g.name
-    color = g.color
-    const allDevs = [...g.subs.flatMap(s => s.devices), ...g.devices]
-    const online = allDevs.filter(d => d.status !== 'offline').length
-    const offline = allDevs.length - online
-    const groupTypeNames: Record<string, string> = { island: '岛屿', ship: '船舶', 'route-station': '路由站', aircraft: '飞行器', buoy: '浮标', satellite: '卫星', vehicle: '车辆', station: '站点' }
-    items = [
-      { label: '类型', value: groupTypeNames[g.type] ?? g.type },
-    ]
-    if (g.subs.length > 0) items.push({ label: '子站', value: `${g.subs.length} 个` })
-    items.push(
-      { label: '设备', value: `${allDevs.length} 个` },
-      { label: '在线', value: `${online} 个` },
-      { label: '离线', value: `${offline} 个` },
-    )
-  } else if (sid) {
-    for (const g of layoutGroups) {
-      const sub = g.subs.find(s => s.id === sid)
-      if (sub) {
-        title = sub.name
-        color = g.color
-        const online = sub.devices.filter(d => d.status !== 'offline').length
-        const offline = sub.devices.length - online
+  if (nid && nodeMap.has(nid)) {
+    const cn = nodeMap.get(nid)!
+    const node = cn.node
+
+    // 如果用户提供了自定义 formatter
+    if (props.tooltipFormatter) {
+      const result = props.tooltipFormatter({ type: 'node', data: node, computed: cn })
+      if (result) {
+        title = result.title
+        color = result.color ?? '#38bdf8'
+        items = result.items
+      }
+    } else {
+      // 默认展示
+      title = node.name
+      color = cn.color
+      items = [
+        { label: '类型', value: finalNodeTypes.value[node.type_id]?.name ?? node.type_id },
+        { label: '状态', value: node.status },
+        { label: '经度', value: node.lng.toFixed(4) },
+        { label: '纬度', value: node.lat.toFixed(4) },
+      ]
+      // 展示所有 extra 属性
+      if (node.extra) {
+        for (const [k, v] of Object.entries(node.extra)) {
+          items.push({ label: k, value: String(v) })
+        }
+      }
+    }
+  } else if (rid) {
+    // 关系 tooltip
+    const cr = layoutRelations.find(r => r.relation.uuid === rid)
+    if (cr) {
+      const rel = cr.relation
+      if (props.tooltipFormatter) {
+        const result = props.tooltipFormatter({ type: 'relation', data: rel })
+        if (result) {
+          title = result.title
+          color = result.color ?? '#38bdf8'
+          items = result.items
+        }
+      } else {
+        title = rel.name || '关系'
+        color = cr.config.color
         items = [
-          { label: '所属', value: g.name },
-          { label: '设备', value: `${sub.devices.length} 个` },
-          { label: '在线', value: `${online} 个` },
-          { label: '离线', value: `${offline} 个` },
+          { label: '类型', value: cr.config.name },
+          { label: '状态', value: rel.status },
+          { label: '源', value: rel.from_id },
+          { label: '目标', value: rel.to_id },
         ]
-        break
+        if (rel.extra) {
+          for (const [k, v] of Object.entries(rel.extra)) {
+            items.push({ label: k, value: String(v) })
+          }
+        }
+      }
+    }
+  } else if (cid) {
+    // 包含圈 tooltip
+    const cn = nodeMap.get(cid)
+    if (cn) {
+      title = cn.node.name
+      color = cn.color
+      items = [
+        { label: '类型', value: finalNodeTypes.value[cn.node.type_id]?.name ?? cn.node.type_id },
+        { label: '状态', value: cn.node.status },
+      ]
+      if (cn.node.extra) {
+        for (const [k, v] of Object.entries(cn.node.extra)) {
+          items.push({ label: k, value: String(v) })
+        }
       }
     }
   } else {
@@ -299,15 +399,13 @@ function onTooltipShow(e: MouseEvent) {
   const cr = container.value.getBoundingClientRect()
   let left = e.clientX - cr.left + 14
   let top = e.clientY - cr.top + 14
-  if (left + 180 > cr.width) left = e.clientX - cr.left - 190
-  if (top + 140 > cr.height) top = e.clientY - cr.top - 140
+  if (left + 200 > cr.width) left = e.clientX - cr.left - 210
+  if (top + 160 > cr.height) top = e.clientY - cr.top - 160
   tooltip.style = { left: `${left}px`, top: `${top}px` }
   tooltip.visible = true
 }
 
-function onTooltipHide() {
-  tooltip.visible = false
-}
+function onTooltipHide() { tooltip.visible = false }
 
 /* ========== 交互 ========== */
 let drag: any = null
@@ -321,31 +419,10 @@ function screenToSvg(sx: number, sy: number) {
 function onDown(e: MouseEvent) {
   const t = e.target as Element
   const nid = t.getAttribute('data-nid')
-  const sid = t.getAttribute('data-sid')
-  const gid = t.getAttribute('data-gid')
 
-  if (nid && deviceMap.has(nid)) {
-    const d = deviceMap.get(nid)!
-    drag = { type: 'node', id: nid, sx: d.x, sy: d.y, mx: e.clientX, my: e.clientY }
-    e.preventDefault()
-  } else if (sid) {
-    let sub: any = null, group: ComputedGroup | null = null
-    for (const g of layoutGroups) {
-      const found = g.subs.find(s => s.id === sid)
-      if (found) { sub = found; group = g; break }
-    }
-    if (sub && group) {
-      const ns = sub.devices.map((d: ComputedDevice) => ({ id: d.id, x: d.x, y: d.y }))
-      drag = { type: 'sub', sub, group, sx: sub.x, sy: sub.y, ns, mx: e.clientX, my: e.clientY }
-      e.preventDefault()
-    }
-  } else if (gid && groupLookup.has(gid)) {
-    const { group, subs } = groupLookup.get(gid)!
-    const allNodes: { id: string; x: number; y: number }[] = []
-    subs.forEach(s => s.devices.forEach(d => allNodes.push({ id: d.id, x: d.x, y: d.y })))
-    group.devices.forEach(d => allNodes.push({ id: d.id, x: d.x, y: d.y }))
-    const allSubs = subs.map(s => ({ sub: s, sx: s.x, sy: s.y }))
-    drag = { type: 'group', group, allSubs, allNodes, sx: group.x, sy: group.y, mx: e.clientX, my: e.clientY }
+  if (nid && nodeMap.has(nid)) {
+    const cn = nodeMap.get(nid)!
+    drag = { type: 'node', id: nid, sx: cn.x, sy: cn.y, mx: e.clientX, my: e.clientY }
     e.preventDefault()
   } else {
     drag = { type: 'pan', mx: e.clientX, my: e.clientY }
@@ -369,34 +446,49 @@ function onMove(e: MouseEvent) {
   const ddx = cur.x - start.x, ddy = cur.y - start.y
 
   if (drag.type === 'node') {
-    const d = deviceMap.get(drag.id)!
-    let nx = drag.sx + ddx, ny = drag.sy + ddy
-    // 约束：在所属 sub 或 group 内
-    const grp = layoutGroups.find(g => g.id === d.groupId)!
-    const sub = grp.subs.find(s => s.id === d.subId)
-    const cRef = sub ?? grp
-    const maxD = cRef.r - d.r - 2
-    const dx = nx - cRef.x, dy = ny - cRef.y
-    const dist = Math.sqrt(dx * dx + dy * dy)
-    if (dist > maxD && dist > 0) { nx = cRef.x + dx / dist * maxD; ny = cRef.y + dy / dist * maxD }
-    d.x = nx; d.y = ny
-    doRender()
-  } else if (drag.type === 'sub') {
-    const { sub, group } = drag
-    let nx = drag.sx + ddx, ny = drag.sy + ddy
-    const maxD = group.r - sub.r - 2
-    const dx = nx - group.x, dy = ny - group.y
-    const dist = Math.sqrt(dx * dx + dy * dy)
-    if (dist > maxD && dist > 0) { nx = group.x + dx / dist * maxD; ny = group.y + dy / dist * maxD }
-    const adx = nx - drag.sx, ady = ny - drag.sy
-    sub.x = nx; sub.y = ny
-    drag.ns.forEach((n: any) => { const d = deviceMap.get(n.id)!; d.x = n.x + adx; d.y = n.y + ady })
-    doRender()
-  } else if (drag.type === 'group') {
-    const { group, allSubs, allNodes } = drag
-    group.x = drag.sx + ddx; group.y = drag.sy + ddy
-    allSubs.forEach((s: any) => { s.sub.x = s.sx + ddx; s.sub.y = s.sy + ddy })
-    allNodes.forEach((n: any) => { const d = deviceMap.get(n.id)!; d.x = n.x + ddx; d.y = n.y + ddy })
+    const cn = nodeMap.get(drag.id)!
+    let newX = drag.sx + ddx
+    let newY = drag.sy + ddy
+
+    // 如果拖动的是容器节点，移动所有后代节点（使用增量，不是总量）
+    if (cn.isContainer) {
+      const lastX = drag.lastX ?? drag.sx
+      const lastY = drag.lastY ?? drag.sy
+      const frameDx = newX - lastX
+      const frameDy = newY - lastY
+      const descendants = getAllDescendants(drag.id)
+      for (const did of descendants) {
+        const child = nodeMap.get(did)
+        if (child) {
+          child.x += frameDx
+          child.y += frameDy
+        }
+      }
+      cn.x = newX
+      cn.y = newY
+      drag.lastX = newX
+      drag.lastY = newY
+    } else {
+      // 非容器节点：约束在父节点的包含圈内
+      const parentId = parentMap.get(drag.id)
+      if (parentId) {
+        const parent = nodeMap.get(parentId)
+        if (parent && parent.containerR) {
+          // 计算子节点到父节点中心的距离，约束不超过 containerR - childR
+          const maxDist = parent.containerR - cn.r - 2
+          const dx = newX - parent.x
+          const dy = newY - parent.y
+          const dist = Math.sqrt(dx * dx + dy * dy)
+          if (dist > maxDist && maxDist > 0) {
+            newX = parent.x + dx / dist * maxDist
+            newY = parent.y + dy / dist * maxDist
+          }
+        }
+      }
+      cn.x = newX
+      cn.y = newY
+    }
+
     doRender()
   }
 }
@@ -418,7 +510,7 @@ function onWheel(e: WheelEvent) {
   svgEl.value.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`)
 }
 
-/* ========== 图例位置样式 ========== */
+/* ========== 图例位置 ========== */
 const legendPosStyle = computed(() => {
   const pos = mergedLegend.value.position ?? 'left-bottom'
   const style: Record<string, string> = {}
@@ -501,5 +593,5 @@ watch(() => props.data, () => { computeLayout(); doRender() }, { deep: true })
 .tg-tooltip h5 { font-size: 13px; margin: 0 0 8px 0; font-weight: 600; }
 .tg-tooltip-row { display: flex; justify-content: space-between; font-size: 12px; color: #94a3b8; margin: 3px 0; }
 .tg-tooltip-label { color: #64748b; }
-.tg-tooltip-value { color: #e2e8f0; font-weight: 500; }
+.tg-tooltip-value { color: #e2e8f0; font-weight: 500; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

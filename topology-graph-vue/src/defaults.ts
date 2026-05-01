@@ -1,34 +1,101 @@
-import type { DeviceTypeConfig, LinkTypeConfig, GroupTypeConfig } from './types'
+/* ================================================================
+ *  默认配置
+ * ================================================================ */
 
-export const defaultDeviceTypes: Record<string, DeviceTypeConfig> = {
-  'terminal':     { icon: '💻', name: '终端' },
-  'comm-device':  { icon: '📡', name: '通信机' },
-  'router':       { icon: '🔀', name: '路由器' },
-  'switch':       { icon: '🔌', name: '交换机' },
-  'server':       { icon: '🖥', name: '服务器' },
-  'gps':          { icon: '🛰', name: 'GPS' },
-  'antenna':      { icon: '📏', name: '天线' },
-  'base-station': { icon: '🏠', name: '基站' },
+import type { NodeTypeConfig, RelationTypeConfig } from './types'
+
+export const defaultNodeTypes: Record<string, NodeTypeConfig> = {
+  'router':       { icon: '🔀', name: '路由器', color: '#38bdf8', radius: 14 },
+  'comm':         { icon: '📡', name: '通信机', color: '#22d3ee', radius: 14 },
+  'ship':         { icon: '🚢', name: '货船', color: '#06b6d4', radius: 16 },
+  'station':      { icon: '🏠', name: '通信站', color: '#eab308', radius: 18 },
+  'terminal':     { icon: '💻', name: '终端', color: '#a78bfa', radius: 12 },
+  'gps':          { icon: '🛰', name: 'GPS', color: '#f97316', radius: 12 },
+  'satellite':    { icon: '🛰', name: '卫星', color: '#a855f7', radius: 14 },
+  'buoy':         { icon: '🔵', name: '浮标', color: '#3b82f6', radius: 12 },
+  'vehicle':      { icon: '🚗', name: '车辆', color: '#22c55e', radius: 14 },
+  'aircraft':     { icon: '✈️', name: '飞行器', color: '#f43f5e', radius: 14 },
+  'antenna':      { icon: '📡', name: '天线', color: '#14b8a6', radius: 12 },
+  'server':       { icon: '🖥', name: '服务器', color: '#8b5cf6', radius: 14 },
+  'switch':       { icon: '🔌', name: '交换机', color: '#64748b', radius: 13 },
+  'base-station': { icon: 'tower', name: '基站', color: '#f59e0b', radius: 16 },
 }
 
-export const defaultLinkTypes: Record<string, LinkTypeConfig> = {
-  'internal':  { color: '#334155', width: 1,   dash: '4 2',       name: '内部链路' },
-  'wired':     { color: '#38bdf8', width: 1.5, dash: '',           name: '有线' },
-  'fiber':     { color: '#22d3ee', width: 1.5, dash: '',           name: '光纤' },
-  'wireless':  { color: '#fbbf24', width: 1,   dash: '3 3',       name: '超短波' },
-  'satellite': { color: '#a78bfa', width: 1.5, dash: '8 4',       name: '卫星通道' },
-  '4g':        { color: '#34d399', width: 1,   dash: '2 4 6 4',   name: '4G' },
-  '5g':        { color: '#f472b6', width: 1.5, dash: '6 3 2 3',   name: '5G' },
-  'microwave': { color: '#67e8f9', width: 1,   dash: '10 2 3 2',  name: '微波' },
+export const defaultRelationTypes: Record<string, RelationTypeConfig> = {
+  'contain': {
+    color: '#334155',
+    width: 1,
+    dash: '4 2',
+    name: '包含关系',
+    isContain: true,
+  },
+  'communicate': {
+    color: '#fbbf24',
+    width: 1.5,
+    dash: '',
+    name: '通信关系',
+    isContain: false,
+  },
+  'wired': {
+    color: '#38bdf8',
+    width: 1.5,
+    dash: '',
+    name: '有线连接',
+    isContain: false,
+  },
+  'fiber': {
+    color: '#22d3ee',
+    width: 1.5,
+    dash: '',
+    name: '光纤',
+    isContain: false,
+  },
+  'wireless': {
+    color: '#fbbf24',
+    width: 1,
+    dash: '3 3',
+    name: '无线连接',
+    isContain: false,
+  },
+  'satellite-link': {
+    color: '#a78bfa',
+    width: 1.5,
+    dash: '8 4',
+    name: '卫星链路',
+    isContain: false,
+  },
+  '4g': {
+    color: '#34d399',
+    width: 1,
+    dash: '2 4 6 4',
+    name: '4G',
+    isContain: false,
+  },
+  '5g': {
+    color: '#f472b6',
+    width: 1.5,
+    dash: '6 3 2 3',
+    name: '5G',
+    isContain: false,
+  },
+  'microwave': {
+    color: '#67e8f9',
+    width: 1,
+    dash: '10 2 3 2',
+    name: '微波',
+    isContain: false,
+  },
 }
 
-export const defaultGroupTypes: Record<string, GroupTypeConfig> = {
-  'island':        { color: '#38bdf8', name: '岛屿' },
-  'route-station': { color: '#22d3ee', name: '路由站' },
-  'ship':          { color: '#06b6d4', name: '船只' },
-  'aircraft':      { color: '#3b82f6', name: '飞行器' },
-  'vehicle':       { color: '#22c55e', name: '车辆' },
-  'satellite':     { color: '#a855f7', name: '卫星' },
-  'buoy':          { color: '#f97316', name: '浮标' },
-  'station':       { color: '#eab308', name: '基站' },
+/** 默认状态颜色映射 */
+export const statusColors: Record<string, string> = {
+  'online': '#22c55e',
+  'offline': '#ef4444',
+  'connected': '#22c55e',
+  'disconnected': '#ef4444',
+  'warning': '#f59e0b',
+  'error': '#ef4444',
+  'normal': '#22c55e',
+  'active': '#38bdf8',
+  'inactive': '#64748b',
 }

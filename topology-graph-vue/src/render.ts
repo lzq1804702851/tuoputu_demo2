@@ -1,7 +1,17 @@
+/* ================================================================
+ *  SVG 渲染引擎
+ *  Layer 0: 地图底图
+ *  Layer 1: 包含圈（外→内递归）
+ *  Layer 2: 通信连线（贝塞尔曲线）
+ *  Layer 3: 节点图标 + 属性标签
+ * ================================================================ */
+
 import type {
-  RenderState, ComputedGroup, ComputedDevice, ComputedLink,
-  LinkTypeConfig, LegendConfig,
+  RenderState, ComputedNode, ComputedRelation, ContainmentNode,
+  RelationTypeConfig, LegendConfig, NodeLabelKeys, TopoNode,
 } from './types'
+import { southChinaSeaFeatures, projectFeatures, type MapFeature } from './map-data'
+import { statusColors } from './defaults'
 
 const NS = 'http://www.w3.org/2000/svg'
 
@@ -20,113 +30,266 @@ function txt(content: string, attrs: Record<string, string | number | undefined>
   return t
 }
 
-/* ========== 画线 ========== */
-function drawLink(
-  sp: { x: number; y: number; r: number },
-  tp: { x: number; y: number; r: number },
-  cfg: LinkTypeConfig,
-  layer: Element,
-  extra: { opacity?: number; curve?: number; dim?: boolean } = {},
-) {
-  const dx = tp.x - sp.x, dy = tp.y - sp.y
-  const len = Math.sqrt(dx * dx + dy * dy) || 1
-  const x1 = sp.x + dx / len * (sp.r + 2), y1 = sp.y + dy / len * (sp.r + 2)
-  const x2 = tp.x - dx / len * (tp.r + 2), y2 = tp.y - dy / len * (tp.r + 2)
-  const op = extra.opacity ?? 1
-  if (extra.curve) {
-    const cpx = (x1 + x2) / 2 - dy * extra.curve, cpy = (y1 + y2) / 2 + dx * extra.curve
-    el('path', { d: `M${x1},${y1} Q${cpx},${cpy} ${x2},${y2}`, fill: 'none', stroke: cfg.color, 'stroke-width': cfg.width, 'stroke-dasharray': cfg.dash || undefined, opacity: op }, layer)
-  } else {
-    el('line', { x1, y1, x2, y2, stroke: cfg.color, 'stroke-width': cfg.width, 'stroke-dasharray': cfg.dash || undefined, opacity: op }, layer)
+/* ========== 地图底图渲染 ========== */
+function renderMap(layer: Element, projectedFeatures: MapFeature[]) {
+  for (const f of projectedFeatures) {
+    const attrs: Record<string, string | number | undefined> = {
+      d: f.path,
+    }
+    if (f.style.fill) attrs.fill = f.style.fill
+    else attrs.fill = 'none'
+    if (f.style.stroke) attrs.stroke = f.style.stroke
+    if (f.style.strokeWidth) attrs['stroke-width'] = f.style.strokeWidth
+    if (f.style.opacity !== undefined) attrs.opacity = f.style.opacity
+
+    el('path', attrs, layer)
   }
 }
 
-/* ========== 离线关联节点计算 ========== */
-function buildFaultRelated(state: RenderState): Set<string> {
-  const s = new Set<string>()
-  state.deviceMap.forEach((d, id) => { if (d.status === 'offline') s.add(id) })
-  state.links.forEach(lk => {
-    if (s.has(lk.source) || state.deviceMap.get(lk.source)?.status === 'offline') s.add(lk.target)
-    if (s.has(lk.target) || state.deviceMap.get(lk.target)?.status === 'offline') s.add(lk.source)
-  })
-  return s
+/* ========== 包含圈渲染（递归） ========== */
+function renderContainmentCircles(layer: Element, labelLayer: Element, tree: ContainmentNode[], dim: boolean) {
+  for (const cn of tree) {
+    const opacity = dim ? 0.05 : Math.max(0.15, 0.5 - cn.depth * 0.1)
+
+    // 画包含圈（实线）
+    el('circle', {
+      cx: cn.x, cy: cn.y, r: cn.r,
+      fill: 'transparent',
+      stroke: '#38bdf8',
+      'stroke-width': Math.max(0.8, 2 - cn.depth * 0.3),
+      opacity,
+      'data-cid': cn.node.uuid,
+      cursor: 'grab',
+    }, layer)
+
+    // 标签（大圆正下方）
+    const fontSize = Math.max(7, 11 - cn.depth * 1.5)
+    txt(cn.node.name, {
+      x: cn.x,
+      y: cn.y + cn.r + fontSize + 2,
+      'text-anchor': 'middle',
+      fill: '#38bdf8',
+      'font-size': fontSize,
+      'font-weight': 'bold',
+      opacity: dim ? 0.05 : 0.7,
+      'data-cid': cn.node.uuid,
+      cursor: 'grab',
+    }, labelLayer)
+
+    // 递归渲染子包含圈
+    if (cn.children.length > 0) {
+      renderContainmentCircles(layer, labelLayer, cn.children, dim)
+    }
+  }
 }
 
-/* ========== 主渲染 ========== */
-export function render(svg: SVGSVGElement, state: RenderState, vb: { x: number; y: number; w: number; h: number }) {
+/* ========== 连线渲染 ========== */
+function drawLink(
+  cr: ComputedRelation,
+  layer: Element,
+  nodeMap: Map<string, ComputedNode>,
+  extra: { opacity?: number; dim?: boolean } = {},
+) {
+  let { fromX, fromY, toX, toY, fromR, toR, config: cfg } = cr
+
+  // 如果端点是容器节点，连线连到大圆（containerR）边缘
+  const fromNode = nodeMap.get(cr.relation.from_id)
+  const toNode = nodeMap.get(cr.relation.to_id)
+  if (fromNode && fromNode.isContainer && fromNode.containerR) {
+    fromX = fromNode.x; fromY = fromNode.y; fromR = fromNode.containerR
+  }
+  if (toNode && toNode.isContainer && toNode.containerR) {
+    toX = toNode.x; toY = toNode.y; toR = toNode.containerR
+  }
+
+  const dx = toX - fromX, dy = toY - fromY
+  const len = Math.sqrt(dx * dx + dy * dy) || 1
+  const x1 = fromX + dx / len * (fromR + 2)
+  const y1 = fromY + dy / len * (fromR + 2)
+  const x2 = toX - dx / len * (toR + 2)
+  const y2 = toY - dy / len * (toR + 2)
+  const op = extra.opacity ?? 1
+
+  // 稍微弯曲以避免重叠
+  const curve = 0.04
+  const cpx = (x1 + x2) / 2 - dy * curve
+  const cpy = (y1 + y2) / 2 + dx * curve
+
+  const attrs: Record<string, string | number | undefined> = {
+    d: `M${x1},${y1} Q${cpx},${cpy} ${x2},${y2}`,
+    fill: 'none',
+    stroke: cfg.color,
+    'stroke-width': cfg.width,
+    'stroke-dasharray': cfg.dash || undefined,
+    opacity: op,
+    'data-rid': cr.relation.uuid,
+  }
+
+  // 如果关系状态是断开的，用特殊样式
+  if (cr.relation.status === 'disconnected' || cr.relation.status === 'offline') {
+    attrs['stroke-dasharray'] = '2 4'
+    attrs.stroke = '#ef4444'
+    attrs.opacity = op * 0.6
+  }
+
+  el('path', attrs, layer)
+
+  // 关系名称标签（在连线中点）
+  if (cr.relation.name && len > 60) {
+    const mx = (x1 + x2) / 2 - dy * curve * 0.5
+    const my = (y1 + y2) / 2 + dx * curve * 0.5
+    txt(cr.relation.name, {
+      x: mx, y: my - 4,
+      'text-anchor': 'middle',
+      fill: cfg.color,
+      'font-size': 6,
+      opacity: op * 0.6,
+      'data-rid': cr.relation.uuid,
+    }, layer)
+  }
+}
+
+/* ========== 节点渲染 ========== */
+function renderNode(
+  cn: ComputedNode,
+  nodeLayer: Element,
+  labelLayer: Element,
+  dim: boolean,
+  nodeLabels?: NodeLabelKeys,
+) {
+  const { x, y, r, icon, color, node } = cn
+  const op = dim ? 0.06 : 1
+  const isOffline = node.status === 'offline' || node.status === 'error'
+  const statusColor = statusColors[node.status] || '#64748b'
+
+  // 状态光晕
+  if (isOffline) {
+    const gc = el('circle', {
+      cx: x, cy: y, r: r + 6,
+      fill: '#ef444415', stroke: '#ef4444', 'stroke-width': 1.5,
+    }, nodeLayer)
+    el('animate', { attributeName: 'opacity', values: '0.3;0.9;0.3', dur: '1.2s', repeatCount: 'indefinite' }, gc)
+    el('animate', { attributeName: 'r', values: `${r + 4};${r + 12};${r + 4}`, dur: '1.2s', repeatCount: 'indefinite' }, gc)
+  }
+
+  // 主圆
+  el('circle', {
+    cx: x, cy: y, r,
+    fill: isOffline ? '#ef444425' : 'transparent',
+    stroke: isOffline ? '#ef4444' : statusColor,
+    'stroke-width': isOffline ? 1.5 : 1,
+    opacity: op,
+    'data-nid': node.uuid,
+    cursor: 'grab',
+  }, nodeLayer)
+
+  // 图标
+  txt(icon, {
+    x, y: y - 1,
+    'text-anchor': 'middle',
+    'font-size': r > 14 ? 11 : 9,
+    opacity: op,
+    'data-nid': node.uuid,
+    cursor: 'grab',
+  }, nodeLayer)
+
+  // 节点名称
+  txt(node.name, {
+    x, y: y + r + 9,
+    'text-anchor': 'middle',
+    fill: isOffline ? '#fca5a5' : '#94a3b8',
+    'font-size': 7,
+    opacity: op,
+    'data-nid': node.uuid,
+    cursor: 'grab',
+  }, labelLayer)
+
+  // 额外属性标签
+  if (nodeLabels && node.extra) {
+    const labels = typeof nodeLabels === 'function'
+      ? nodeLabels(node)
+      : nodeLabels
+        .filter(k => node.extra![k] !== undefined)
+        .map(k => ({ key: k, value: String(node.extra![k]) }))
+
+    labels.forEach((item, idx) => {
+      txt(`${item.key}: ${item.value}`, {
+        x, y: y + r + 18 + idx * 8,
+        'text-anchor': 'middle',
+        fill: '#64748b',
+        'font-size': 6,
+        opacity: op * 0.7,
+        'data-nid': node.uuid,
+        cursor: 'grab',
+      }, labelLayer)
+    })
+  }
+}
+
+/* ========== 主渲染入口 ========== */
+export function render(
+  svg: SVGSVGElement,
+  state: RenderState,
+  vb: { x: number; y: number; w: number; h: number },
+  projectedMapFeatures: MapFeature[],
+  nodeLabels?: NodeLabelKeys,
+) {
   while (svg.firstChild) svg.removeChild(svg.firstChild)
   svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`)
 
+  // Defs
   const defs = el('defs', {}, svg) as unknown as SVGDefsElement
   const pat = el('pattern', { id: 'tg-grid', width: 40, height: 40, patternUnits: 'userSpaceOnUse' }, defs)
   el('path', { d: 'M 40 0 L 0 0 0 40', fill: 'none', stroke: '#1e293b', 'stroke-width': 0.5 }, pat)
 
+  // 背景
   el('rect', { width: 20000, height: 20000, x: -10000, y: -10000, fill: '#0f172a' }, svg)
-  el('rect', { width: 20000, height: 20000, x: -10000, y: -10000, fill: 'url(#tg-grid)' }, svg)
 
-  const linkLayer = el('g', {}, svg)
-  const circleLayer = el('g', {}, svg)
-  const nodeLayer = el('g', {}, svg)
-  const labelLayer = el('g', {}, svg)
+  // Layer 0: 地图底图
+  const mapLayer = el('g', { class: 'tg-map' }, svg)
+  renderMap(mapLayer, projectedMapFeatures)
 
-  const { groups, links, faultMode, faultRelated, linkTypes: ltCfg, faultRelated: fr } = state
-  const related = faultMode ? fr : new Set<string>()
+  // 网格（微弱）
+  el('rect', { width: 20000, height: 20000, x: -10000, y: -10000, fill: 'url(#tg-grid)', opacity: 0.3 }, svg)
 
-  function hasRel(s: string, t: string) {
-    return related.has(s) || related.has(t)
+  const { nodes, relations, containmentTree, filterMode, filterRelated } = state
+  const related = filterMode ? filterRelated : new Set<string>()
+
+  function isNodeDim(cn: ComputedNode): boolean {
+    if (!filterMode) return false
+    return !related.has(cn.node.uuid)
   }
-  function gRel(g: ComputedGroup) {
-    return g.subs.some(s => s.devices.some(d => related.has(d.id))) || g.devices.some(d => related.has(d.id))
-  }
 
-  // 1) 连线
-  links.forEach((lk, i) => {
-    const sp = state.deviceMap.get(lk.source), tp = state.deviceMap.get(lk.target)
-    if (!sp || !tp) return
-    const cfg = ltCfg[lk.type] || ltCfg['internal'] || { color: '#475569', width: 1, dash: '4 2' }
-    const dim = faultMode && !hasRel(lk.source, lk.target)
-    const isExternal = lk.level === 'external'
-    drawLink(sp, tp, cfg, linkLayer, {
-      opacity: dim ? 0.06 : (isExternal ? 0.5 : 1),
-      curve: isExternal ? 0.06 + (i % 5) * 0.02 : undefined,
-    })
+  // Layer 1: 包含圈
+  const circleLayer = el('g', { class: 'tg-circles' }, svg)
+  const circleLabelLayer = el('g', { class: 'tg-circle-labels' }, svg)
+  const anyDim = !!filterMode
+  renderContainmentCircles(circleLayer, circleLabelLayer, containmentTree, anyDim)
+
+  // Layer 2: 通信连线
+  const linkLayer = el('g', { class: 'tg-links' }, svg)
+  relations.forEach(cr => {
+    const dim = filterMode && !related.has(cr.relation.from_id) && !related.has(cr.relation.to_id)
+    drawLink(cr, linkLayer, state.nodeMap, { opacity: dim ? 0.06 : 0.6 })
   })
 
-  // 2) 分组圆
-  groups.forEach(g => {
-    const dim = faultMode && !gRel(g)
-    el('circle', { cx: g.x, cy: g.y, r: g.r, fill: 'transparent', stroke: g.color, 'stroke-width': 1.5, 'stroke-dasharray': '6 3', opacity: dim ? 0.05 : 0.5, 'data-gid': g.id, cursor: 'grab' }, circleLayer)
-    txt(g.name, { x: g.x, y: g.y - g.r + 14, 'text-anchor': 'middle', fill: g.color, 'font-size': g.r > 80 ? 10 : 9, 'font-weight': 'bold', opacity: dim ? 0.05 : 0.8, 'data-gid': g.id, cursor: 'grab' }, labelLayer)
-  })
-
-  // 3) 子站圆
-  groups.forEach(g => g.subs.forEach(sub => {
-    const dim = faultMode && !sub.devices.some(d => related.has(d.id))
-    el('circle', { cx: sub.x, cy: sub.y, r: sub.r, fill: 'transparent', stroke: g.color, 'stroke-width': 1, 'stroke-dasharray': '4 2', opacity: dim ? 0.04 : 0.35, 'data-sid': sub.id, cursor: 'grab' }, circleLayer)
-    txt(sub.name, { x: sub.x, y: sub.y - sub.r + 12, 'text-anchor': 'middle', fill: g.color, 'font-size': 8, opacity: dim ? 0.04 : 0.6, 'data-sid': sub.id, cursor: 'grab' }, labelLayer)
-  }))
-
-  // 4) 设备节点
-  const allDevs: ComputedDevice[] = []
-  groups.forEach(g => {
-    g.subs.forEach(s => s.devices.forEach(d => allDevs.push(d)))
-    g.devices.forEach(d => allDevs.push(d))
-  })
-
-  allDevs.forEach(d => {
-    const off = d.status === 'offline'
-    const rel = related.has(d.id)
-    const dim = faultMode && !rel
-    const op = dim ? 0.06 : 1
-    if (off) {
-      const gc = el('circle', { cx: d.x, cy: d.y, r: d.r + 4, fill: '#ef444415', stroke: '#ef4444', 'stroke-width': 1.5 }, nodeLayer)
-      el('animate', { attributeName: 'opacity', values: '0.3;0.9;0.3', dur: '1.2s', repeatCount: 'indefinite' }, gc)
-      el('animate', { attributeName: 'r', values: `${d.r + 2};${d.r + 10};${d.r + 2}`, dur: '1.2s', repeatCount: 'indefinite' }, gc)
-      el('circle', { cx: d.x, cy: d.y, r: d.r, fill: '#ef444425', stroke: '#ef4444', 'stroke-width': 1.5, 'data-nid': d.id, cursor: 'grab' }, nodeLayer)
+  // Layer 3: 节点（容器节点跳过小圆渲染，只画图标和标签）
+  const nodeLayer = el('g', { class: 'tg-nodes' }, svg)
+  const nodeLabelLayer = el('g', { class: 'tg-node-labels' }, svg)
+  nodes.forEach(cn => {
+    if (cn.isContainer) {
+      // 容器节点：只画图标（在大圆中心），名称在大圆正下方（由包含圈标签层渲染，这里不重复画）
+      const op = isNodeDim(cn) ? 0.06 : 1
+      txt(cn.icon, {
+        x: cn.x, y: cn.y + 4,
+        'text-anchor': 'middle',
+        'font-size': 13,
+        opacity: op,
+        'data-nid': cn.node.uuid,
+        cursor: 'grab',
+      }, nodeLayer)
     } else {
-      el('circle', { cx: d.x, cy: d.y, r: d.r, fill: 'transparent', stroke: '#22c55e', 'stroke-width': 1, opacity: op, 'data-nid': d.id, cursor: 'grab' }, nodeLayer)
+      renderNode(cn, nodeLayer, nodeLabelLayer, isNodeDim(cn), nodeLabels)
     }
-    txt(d.icon, { x: d.x, y: d.y - 2, 'text-anchor': 'middle', 'font-size': d.r > 14 ? 11 : 9, opacity: op, 'data-nid': d.id, cursor: 'grab' }, nodeLayer)
-    txt(d.name, { x: d.x, y: d.y + (d.r > 14 ? 11 : 9), 'text-anchor': 'middle', fill: off ? '#fca5a5' : '#64748b', 'font-size': d.r > 14 ? 7 : 6, opacity: op, 'data-nid': d.id, cursor: 'grab' }, nodeLayer)
   })
 }

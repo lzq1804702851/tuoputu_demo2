@@ -1,65 +1,58 @@
-/** 设备状态 */
-export type DeviceStatus = 'online' | 'offline'
+/* ================================================================
+ *  通用拓扑图组件 - 类型定义
+ * ================================================================ */
 
-/** 链路状态 */
-export type LinkStatus = 'normal' | 'error'
+/* ---------- 基础数据模型（用户传入） ---------- */
 
-/** 设备节点 */
-export interface Device {
-  id: string
+/** 通用节点 */
+export interface TopoNode {
+  uuid: string
   name: string
-  type: string
-  status: DeviceStatus
+  type_id: string
+  status: string
+  lng: number
+  lat: number
+  /** 扩展属性，如 { ip: '...', speed: '...' } */
+  extra?: Record<string, any>
 }
 
-/** 子站点（如通信站、路由站点） */
-export interface SubGroup {
-  id: string
+/** 通用关系 */
+export interface TopoRelation {
+  uuid: string
   name: string
-  devices: Device[]
-}
-
-/** 分组（岛屿、船只、路由站等） */
-export interface Group {
-  id: string
-  name: string
-  type: string
-  subs?: SubGroup[]
-  devices?: Device[]
-}
-
-/** 链路（设备ID → 设备ID） */
-export interface TopoLink {
-  source: string
-  target: string
-  type: string
-  status?: LinkStatus
+  type_id: string
+  status: string
+  from_id: string
+  to_id: string
+  /** 扩展属性 */
+  extra?: Record<string, any>
 }
 
 /** 拓扑数据 */
 export interface TopologyData {
-  groups: Group[]
-  links: TopoLink[]
+  nodes: TopoNode[]
+  relations: TopoRelation[]
 }
 
-/** 设备类型配置 */
-export interface DeviceTypeConfig {
+/* ---------- 配置类型 ---------- */
+
+/** 节点类型配置 */
+export interface NodeTypeConfig {
   icon: string
   name: string
+  color?: string
+  /** 节点绘制半径 */
+  radius?: number
 }
 
-/** 链路类型配置 */
-export interface LinkTypeConfig {
+/** 关系类型配置 */
+export interface RelationTypeConfig {
   color: string
   width: number
   dash: string
   name: string
-}
-
-/** 分组类型配置 */
-export interface GroupTypeConfig {
-  color: string
-  name: string
+  /** 是否为包含关系（画大圈套小圈） */
+  isContain?: boolean
 }
 
 /** 图例样式 */
@@ -74,8 +67,8 @@ export interface LegendStyle {
 
 /** 图例分组标题 */
 export interface LegendSectionTitles {
-  devices?: string
-  links?: string
+  nodes?: string
+  relations?: string
   status?: string
 }
 
@@ -83,80 +76,108 @@ export interface LegendSectionTitles {
 export interface LegendConfig {
   show?: boolean
   position?: 'left-bottom' | 'right-bottom' | 'left-top' | 'right-top'
-  deviceTypes?: string[]
-  linkTypes?: string[]
+  nodeTypes?: string[]
+  relationTypes?: string[]
   showStatus?: boolean
   style?: LegendStyle
   sectionTitles?: LegendSectionTitles
 }
 
+/** Tooltip 格式化回调 */
+export type TooltipFormatter = (
+  item: { type: 'node' | 'relation'; data: TopoNode | TopoRelation; computed?: ComputedNode },
+) => { title: string; color?: string; items: { label: string; value: string }[] } | null
+
+/** 节点上要显示的属性标签键名列表 */
+export type NodeLabelKeys = string[] | ((node: TopoNode) => { key: string; value: string }[])
+
 /** 组件 Props */
 export interface TopologyGraphProps {
   data: TopologyData
-  deviceTypes?: Record<string, DeviceTypeConfig>
-  linkTypes?: Record<string, LinkTypeConfig>
-  groupTypes?: Record<string, GroupTypeConfig>
+  nodeTypes?: Record<string, NodeTypeConfig>
+  relationTypes?: Record<string, RelationTypeConfig>
   legend?: LegendConfig
   showToolbar?: boolean
+  /** 地图中心经度，默认 110（海南岛附近） */
+  mapCenterLng?: number
+  /** 地图中心纬度，默认 18 */
+  mapCenterLat?: number
+  /** 地图缩放级别，默认 1 */
+  mapZoom?: number
+  /** 节点上显示的属性标签 */
+  nodeLabels?: NodeLabelKeys
+  /** 自定义 tooltip 格式化 */
+  tooltipFormatter?: TooltipFormatter
 }
 
-/* ========== 内部计算类型 ========== */
+/* ---------- 内部计算类型 ---------- */
 
-export interface ComputedDevice extends Device {
-  /** SVG 坐标 */
+/** 包含树层级 */
+export interface ContainmentNode {
+  node: TopoNode
+  children: ContainmentNode[]
+  /** 计算后的 SVG 坐标 */
+  x: number
+  y: number
+  /** 包含圈半径 */
+  r: number
+  /** 层级深度（0 = 最外层） */
+  depth: number
+}
+
+/** 计算后的节点 */
+export interface ComputedNode {
+  node: TopoNode
+  /** SVG 坐标（经投影 + 力偏移后） */
   x: number
   y: number
   /** 绘制半径 */
   r: number
-  /** 所属 subId（如果有） */
-  subId?: string
-  /** 所属 groupId */
-  groupId: string
-  /** 图标（已解析） */
+  /** 图标 */
   icon: string
-}
-
-export interface ComputedSub {
-  id: string
-  name: string
-  x: number
-  y: number
-  r: number
-  devices: ComputedDevice[]
-  groupId: string
-}
-
-export interface ComputedGroup {
-  id: string
-  name: string
-  type: string
+  /** 颜色 */
   color: string
-  x: number
-  y: number
-  r: number
-  subs: ComputedSub[]
-  devices: ComputedDevice[]
+  /** 所属包含树祖先路径 (uuid[]) */
+  containmentPath: string[]
+  /** 是否为包含关系的父节点（有大圈） */
+  isContainer: boolean
+  /** 包含圈半径（仅 isContainer 时有效） */
+  containerR: number
 }
 
-export interface ComputedLink {
-  source: string
-  target: string
-  type: string
-  status: LinkStatus
-  /** internal / sub / external */
-  level: 'internal' | 'sub' | 'external'
+/** 计算后的关系 */
+export interface ComputedRelation {
+  relation: TopoRelation
+  fromX: number
+  fromY: number
+  toX: number
+  toY: number
+  fromR: number
+  toR: number
+  /** 是否为包含关系 */
+  isContain: boolean
+  /** 配置 */
+  config: RelationTypeConfig
 }
 
-/** 渲染所需的完整状态 */
+/** 渲染状态 */
 export interface RenderState {
-  groups: ComputedGroup[]
-  links: ComputedLink[]
-  deviceMap: Map<string, ComputedDevice>
-  faultMode: boolean
-  faultRelated: Set<string>
-  /** 最终合并后的配置 */
-  deviceTypes: Record<string, DeviceTypeConfig>
-  linkTypes: Record<string, LinkTypeConfig>
-  groupTypes: Record<string, GroupTypeConfig>
+  nodes: ComputedNode[]
+  relations: ComputedRelation[]
+  containmentTree: ContainmentNode[]
+  nodeMap: Map<string, ComputedNode>
+  filterMode: string | null
+  filterRelated: Set<string>
+  nodeTypes: Record<string, NodeTypeConfig>
+  relationTypes: Record<string, RelationTypeConfig>
   legend: LegendConfig
+}
+
+/** 投影配置 */
+export interface ProjectionConfig {
+  centerLng: number
+  centerLat: number
+  zoom: number
+  width: number
+  height: number
 }

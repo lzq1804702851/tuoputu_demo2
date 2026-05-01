@@ -1,3 +1,6 @@
 export { default as TopologyGraph } from './TopologyGraph.vue'
 export * from './types'
-export { defaultDeviceTypes, defaultLinkTypes, defaultGroupTypes } from './defaults'
+export { defaultNodeTypes, defaultRelationTypes, statusColors } from './defaults'
+export { createProjection } from './projection'
+export { southChinaSeaFeatures, projectFeatures } from './map-data'
+export { buildContainmentTree, runForceLayout } from './force'
