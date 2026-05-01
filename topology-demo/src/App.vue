@@ -8,7 +8,6 @@
 
 <script setup lang="ts">
 import { TopologyGraph } from 'topology-graph-vue'
-import 'topology-graph-vue/dist/style.css'
 import { mockData } from './mock-data'
 
 const legendConfig = {
