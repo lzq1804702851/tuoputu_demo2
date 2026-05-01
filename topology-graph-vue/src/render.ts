@@ -8,7 +8,7 @@
 
 import type {
   RenderState, ComputedNode, ComputedRelation, ContainmentNode,
-  RelationTypeConfig, LegendConfig, NodeLabelKeys, TopoNode,
+  RelationTypeConfig, LegendConfig, NodeLabelKeys, TopoNode, NodeTypeConfig,
 } from './types'
 import { southChinaSeaFeatures, projectFeatures, type MapFeature } from './map-data'
 import { statusColors } from './defaults'
@@ -47,28 +47,40 @@ function renderMap(layer: Element, projectedFeatures: MapFeature[]) {
 }
 
 /* ========== 包含圈渲染（递归） ========== */
-function renderContainmentCircles(layer: Element, labelLayer: Element, tree: ContainmentNode[], dim: boolean) {
+function renderContainmentCircles(
+  layer: Element, labelLayer: Element,
+  tree: ContainmentNode[], dim: boolean,
+  nodeMap: Map<string, ComputedNode>,
+  nodeTypes: Record<string, NodeTypeConfig>,
+) {
   for (const cn of tree) {
     const opacity = dim ? 0.05 : Math.max(0.15, 0.5 - cn.depth * 0.1)
+    const status = cn.node.status
+    const statusColor = statusColors[status] || '#38bdf8'
+    const isOffline = status === 'offline' || status === 'error'
+    const isWarning = status === 'warning'
 
-    // 画包含圈（实线）
+
+    // 画包含圈（实线，颜色反映状态）
     el('circle', {
       cx: cn.x, cy: cn.y, r: cn.r,
-      fill: 'transparent',
-      stroke: '#38bdf8',
+      fill: isOffline ? '#ef444410' : isWarning ? '#f59e0b08' : 'transparent',
+      stroke: isOffline ? '#ef4444' : isWarning ? '#f59e0b' : statusColor,
       'stroke-width': Math.max(0.8, 2 - cn.depth * 0.3),
       opacity,
       'data-cid': cn.node.uuid,
       cursor: 'grab',
     }, layer)
 
-    // 标签（大圆正下方）
+    // 标签（大圆正上方，名称前加类型图标）
     const fontSize = Math.max(7, 11 - cn.depth * 1.5)
-    txt(cn.node.name, {
+    const typeIcon = nodeTypes[cn.node.type_id]?.icon || ''
+    const displayName = typeIcon + ' ' + cn.node.name
+    txt(displayName, {
       x: cn.x,
-      y: cn.y + cn.r + fontSize + 2,
+      y: cn.y - cn.r - 4,
       'text-anchor': 'middle',
-      fill: '#38bdf8',
+      fill: isOffline ? '#fca5a5' : isWarning ? '#fbbf24' : '#38bdf8',
       'font-size': fontSize,
       'font-weight': 'bold',
       opacity: dim ? 0.05 : 0.7,
@@ -78,7 +90,7 @@ function renderContainmentCircles(layer: Element, labelLayer: Element, tree: Con
 
     // 递归渲染子包含圈
     if (cn.children.length > 0) {
-      renderContainmentCircles(layer, labelLayer, cn.children, dim)
+      renderContainmentCircles(layer, labelLayer, cn.children, dim, nodeMap, nodeTypes)
     }
   }
 }
@@ -125,23 +137,40 @@ function drawLink(
     'data-rid': cr.relation.uuid,
   }
 
-  // 如果关系状态是断开的，用特殊样式
+  // 根据关系状态调整样式
   if (cr.relation.status === 'disconnected' || cr.relation.status === 'offline') {
-    attrs['stroke-dasharray'] = '2 4'
+    attrs['stroke-dasharray'] = '3 5'
     attrs.stroke = '#ef4444'
-    attrs.opacity = op * 0.6
+    attrs.opacity = op * 0.5
   }
 
   el('path', attrs, layer)
 
-  // 关系名称标签（在连线中点）
-  if (cr.relation.name && len > 60) {
+  // 断开的连线：在中点显示 × 标记
+  if (cr.relation.status === 'disconnected' || cr.relation.status === 'offline') {
     const mx = (x1 + x2) / 2 - dy * curve * 0.5
     const my = (y1 + y2) / 2 + dx * curve * 0.5
-    txt(cr.relation.name, {
-      x: mx, y: my - 4,
+    txt('✕', {
+      x: mx, y: my + 3,
       'text-anchor': 'middle',
-      fill: cfg.color,
+      fill: '#ef4444',
+      'font-size': 8,
+      'font-weight': 'bold',
+      opacity: op * 0.8,
+      'data-rid': cr.relation.uuid,
+    }, layer)
+  }
+
+  // 关系名称标签（在连线中点，避开状态图标）
+  if (cr.relation.name && len > 60) {
+    const hasStatusIcon = cr.relation.status === 'disconnected' || cr.relation.status === 'offline'
+    const mx = (x1 + x2) / 2 - dy * curve * 0.5
+    const my = (y1 + y2) / 2 + dx * curve * 0.5
+    const labelFill = (cr.relation.status === 'disconnected' || cr.relation.status === 'offline') ? '#ef4444' : cfg.color
+    txt(cr.relation.name, {
+      x: mx, y: my - (hasStatusIcon ? 10 : 4),
+      'text-anchor': 'middle',
+      fill: labelFill,
       'font-size': 6,
       opacity: op * 0.6,
       'data-rid': cr.relation.uuid,
@@ -162,15 +191,6 @@ function renderNode(
   const isOffline = node.status === 'offline' || node.status === 'error'
   const statusColor = statusColors[node.status] || '#64748b'
 
-  // 状态光晕
-  if (isOffline) {
-    const gc = el('circle', {
-      cx: x, cy: y, r: r + 6,
-      fill: '#ef444415', stroke: '#ef4444', 'stroke-width': 1.5,
-    }, nodeLayer)
-    el('animate', { attributeName: 'opacity', values: '0.3;0.9;0.3', dur: '1.2s', repeatCount: 'indefinite' }, gc)
-    el('animate', { attributeName: 'r', values: `${r + 4};${r + 12};${r + 4}`, dur: '1.2s', repeatCount: 'indefinite' }, gc)
-  }
 
   // 主圆
   el('circle', {
@@ -193,9 +213,9 @@ function renderNode(
     cursor: 'grab',
   }, nodeLayer)
 
-  // 节点名称
+  // 节点名称（圆圈正上方）
   txt(node.name, {
-    x, y: y + r + 9,
+    x, y: y - r - 4,
     'text-anchor': 'middle',
     fill: isOffline ? '#fca5a5' : '#94a3b8',
     'font-size': 7,
@@ -264,7 +284,7 @@ export function render(
   const circleLayer = el('g', { class: 'tg-circles' }, svg)
   const circleLabelLayer = el('g', { class: 'tg-circle-labels' }, svg)
   const anyDim = !!filterMode
-  renderContainmentCircles(circleLayer, circleLabelLayer, containmentTree, anyDim)
+  renderContainmentCircles(circleLayer, circleLabelLayer, containmentTree, anyDim, state.nodeMap, state.nodeTypes)
 
   // Layer 2: 通信连线
   const linkLayer = el('g', { class: 'tg-links' }, svg)
@@ -278,16 +298,8 @@ export function render(
   const nodeLabelLayer = el('g', { class: 'tg-node-labels' }, svg)
   nodes.forEach(cn => {
     if (cn.isContainer) {
-      // 容器节点：只画图标（在大圆中心），名称在大圆正下方（由包含圈标签层渲染，这里不重复画）
-      const op = isNodeDim(cn) ? 0.06 : 1
-      txt(cn.icon, {
-        x: cn.x, y: cn.y + 4,
-        'text-anchor': 'middle',
-        'font-size': 13,
-        opacity: op,
-        'data-nid': cn.node.uuid,
-        cursor: 'grab',
-      }, nodeLayer)
+      // 容器节点：不画图标和名称（由包含圈标签层渲染名称，无图标）
+      // 只有叶子节点才在圆心显示类型图标
     } else {
       renderNode(cn, nodeLayer, nodeLabelLayer, isNodeDim(cn), nodeLabels)
     }

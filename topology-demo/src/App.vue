@@ -44,7 +44,7 @@ const legendConfig = {
   sectionTitles: {
     nodes: '节点类型',
     relations: '关系类型',
-    status: '设备状态',
+    status: '状态',
   },
 }
 </script>

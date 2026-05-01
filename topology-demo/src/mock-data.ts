@@ -8,12 +8,6 @@ import type { TopologyData } from 'topology-graph-vue'
 export const mockData: TopologyData = {
   nodes: [
     /* ======== 海南岛通信网 ======== */
-    // 海南岛（作为包含父节点）
-    {
-      uuid: 'hainan-net', name: '海南岛有线通信网', type_id: 'station',
-      status: 'online', lng: 109.8, lat: 19.2,
-      extra: { area: '海南岛', level: '区域中心' },
-    },
     // 海南岛1号通信站
     {
       uuid: 'hn-sta1', name: '海南岛1号通信站', type_id: 'station',
@@ -55,11 +49,6 @@ export const mockData: TopologyData = {
     },
 
     /* ======== 大洲岛通信网 ======== */
-    {
-      uuid: 'dazhou-net', name: '大洲岛通信网', type_id: 'station',
-      status: 'online', lng: 111.0, lat: 18.5,
-      extra: { area: '大洲岛', level: '岛屿站' },
-    },
     {
       uuid: 'dz-comm', name: '大洲岛通信机', type_id: 'comm',
       status: 'online', lng: 110.95, lat: 18.55,
@@ -161,18 +150,11 @@ export const mockData: TopologyData = {
 
   relations: [
     /* ======== 包含关系 ======== */
-    // 海南岛包含其子节点
-    { uuid: 'c-hn-sta1', name: '', type_id: 'contain', status: 'active', from_id: 'hainan-net', to_id: 'hn-sta1' },
-    { uuid: 'c-hn-sta2', name: '', type_id: 'contain', status: 'active', from_id: 'hainan-net', to_id: 'hn-sta2' },
-    { uuid: 'c-hn-router', name: '', type_id: 'contain', status: 'active', from_id: 'hainan-net', to_id: 'hn-router' },
+    // 海南岛站点包含其子设备
     { uuid: 'c-hn-comm1', name: '', type_id: 'contain', status: 'active', from_id: 'hn-sta1', to_id: 'hn-comm1' },
     { uuid: 'c-hn-term1', name: '', type_id: 'contain', status: 'active', from_id: 'hn-sta1', to_id: 'hn-term1' },
     { uuid: 'c-hn-comm2', name: '', type_id: 'contain', status: 'active', from_id: 'hn-sta2', to_id: 'hn-comm2' },
     { uuid: 'c-hn-term2', name: '', type_id: 'contain', status: 'active', from_id: 'hn-sta2', to_id: 'hn-term2' },
-    // 大洲岛包含
-    { uuid: 'c-dz-comm', name: '', type_id: 'contain', status: 'active', from_id: 'dazhou-net', to_id: 'dz-comm' },
-    { uuid: 'c-dz-router', name: '', type_id: 'contain', status: 'active', from_id: 'dazhou-net', to_id: 'dz-router' },
-    { uuid: 'c-dz-term', name: '', type_id: 'contain', status: 'active', from_id: 'dazhou-net', to_id: 'dz-term' },
     // 海上路由站包含
     { uuid: 'c-sea-router', name: '', type_id: 'contain', status: 'active', from_id: 'sea-relay', to_id: 'sea-router' },
     // 西沙站包含
@@ -203,13 +185,13 @@ export const mockData: TopologyData = {
 
     // 船与岸站通信（无线）
     ...Array.from({ length: 10 }, (_, i) => {
-      const links = [
-        { uuid: `l-s${i}-dz`, name: '无线通信', type_id: 'wireless' as const, status: (i === 2 || i === 7) ? 'disconnected' as const : 'connected' as const, from_id: `s${i}-comm`, to_id: 'dz-comm', extra: { protocol: 'VHF', distance: Math.floor(50 + Math.random() * 200) + 'km' } },
-        { uuid: `l-s${i}-hn1`, name: '无线通信', type_id: 'wireless' as const, status: (i === 2 || i === 7) ? 'disconnected' as const : 'connected' as const, from_id: `s${i}-comm`, to_id: 'hn-comm1' },
-        { uuid: `l-s${i}-hn2`, name: '无线通信', type_id: 'wireless' as const, status: (i === 2 || i === 7) ? 'disconnected' as const : 'connected' as const, from_id: `s${i}-comm`, to_id: 'hn-comm2' },
+      const links: Array<{ uuid: string; name: string; type_id: string; status: string; from_id: string; to_id: string; extra?: Record<string, string> }> = [
+        { uuid: `l-s${i}-dz`, name: '无线通信', type_id: 'wireless', status: (i === 2 || i === 7) ? 'disconnected' : 'connected', from_id: `s${i}-comm`, to_id: 'dz-comm', extra: { protocol: 'VHF', distance: Math.floor(50 + Math.random() * 200) + 'km' } },
+        { uuid: `l-s${i}-hn1`, name: '无线通信', type_id: 'wireless', status: (i === 2 || i === 7) ? 'disconnected' : 'connected', from_id: `s${i}-comm`, to_id: 'hn-comm1' },
+        { uuid: `l-s${i}-hn2`, name: '无线通信', type_id: 'wireless', status: (i === 2 || i === 7) ? 'disconnected' : 'connected', from_id: `s${i}-comm`, to_id: 'hn-comm2' },
       ]
       // 船内通信
-      links.push({ uuid: `l-s${i}-internal`, name: '船内通信', type_id: 'wired' as const, status: 'connected' as const, from_id: `s${i}-term`, to_id: `s${i}-comm` })
+      links.push({ uuid: `l-s${i}-internal`, name: '船内通信', type_id: 'wired', status: 'connected', from_id: `s${i}-term`, to_id: `s${i}-comm` })
       return links
     }).flat(),
 

@@ -46,14 +46,28 @@
         <div class="tg-legend-sep"></div>
       </template>
       <template v-if="mergedLegend.showStatus !== false">
-        <h4>{{ mergedLegend.sectionTitles?.status ?? '状态' }}</h4>
+        <h4>{{ mergedLegend.sectionTitles?.status ?? '节点状态' }}</h4>
         <div class="tg-legend-row">
           <svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="transparent" stroke="#22c55e" stroke-width="1" /></svg>
-          <span>在线</span>
+          <span>在线 (online)</span>
         </div>
         <div class="tg-legend-row">
-          <svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="#ef444425" stroke="#ef4444" stroke-width="1.5"><animate attributeName="opacity" values="0.4;1;0.4" dur="1.2s" repeatCount="indefinite" /></circle></svg>
-          <span style="color:#fca5a5">离线</span>
+          <svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="#ef444425" stroke="#ef4444" stroke-width="1.5" /></svg>
+          <span style="color:#fca5a5">离线 (offline)</span>
+        </div>
+        <div class="tg-legend-row">
+          <svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="transparent" stroke="#f59e0b" stroke-width="1" /></svg>
+          <span style="color:#fbbf24">告警 (warning)</span>
+        </div>
+        <div class="tg-legend-sep"></div>
+        <h4>连线状态</h4>
+        <div class="tg-legend-row">
+          <svg width="32" height="6"><line x1="0" y1="3" x2="32" y2="3" stroke="#22c55e" stroke-width="1.5" /></svg>
+          <span>已连接</span>
+        </div>
+        <div class="tg-legend-row">
+          <svg width="32" height="6"><line x1="0" y1="3" x2="32" y2="3" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="3 5" /></svg>
+          <span style="color:#fca5a5">已断开 ✕</span>
         </div>
       </template>
     </div>
@@ -419,12 +433,21 @@ function screenToSvg(sx: number, sy: number) {
 function onDown(e: MouseEvent) {
   const t = e.target as Element
   const nid = t.getAttribute('data-nid')
+  const cid = t.getAttribute('data-cid')
 
+  // 叶子节点：通过 data-nid 拖动（点圆圈/图标）
   if (nid && nodeMap.has(nid)) {
     const cn = nodeMap.get(nid)!
     drag = { type: 'node', id: nid, sx: cn.x, sy: cn.y, mx: e.clientX, my: e.clientY }
     e.preventDefault()
-  } else {
+  }
+  // 容器节点：通过 data-cid 拖动（点名称标签）
+  else if (cid && nodeMap.has(cid)) {
+    const cn = nodeMap.get(cid)!
+    drag = { type: 'node', id: cid, sx: cn.x, sy: cn.y, mx: e.clientX, my: e.clientY }
+    e.preventDefault()
+  }
+  else {
     drag = { type: 'pan', mx: e.clientX, my: e.clientY }
   }
   ;(svgEl.value as SVGElement).style.cursor = 'grabbing'
