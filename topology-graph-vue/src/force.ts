@@ -13,7 +13,7 @@ import {
 import type {
   TopologyData, TopoNode, TopoRelation,
   ComputedNode, ComputedRelation, ContainmentNode,
-  NodeTypeConfig, RelationTypeConfig, ProjectionConfig,
+  NodeTypeConfig, RelationTypeConfig, ProjectionConfig, ForceConfig,
 } from './types'
 import { createProjection } from './projection'
 
@@ -155,6 +155,7 @@ export function runForceLayout(
   nodeConfigs: Record<string, NodeTypeConfig>,
   relationConfigs: Record<string, RelationTypeConfig>,
   projConfig: ProjectionConfig,
+  forceOpts?: ForceConfig,
 ): {
   nodes: ComputedNode[]
   relations: ComputedRelation[]
@@ -249,24 +250,32 @@ export function runForceLayout(
     fLinks.push({ source: sf, target: st, relType: rel.type_id })
   }
 
-  // 6. 运行力导向模拟
-  // 碰撞半径：取 max(containerR, radius)，确保包含圈不重叠
-  const collideRadius = (d: FNode) => Math.max(d.containerR || 0, d.radius) + 10
+  // 6. 运行力导向模拟（支持外部参数配置）
+  const opts = forceOpts || {}
+  const anchorStr = opts.anchorStrength ?? 0.3
+  const collideStr = opts.collideStrength ?? 1.0
+  const collidePad = opts.collidePadding ?? 10
+  const chargeStr = opts.chargeStrength ?? 5
+  const linkStr = opts.linkStrength ?? 0.05
+  const linkDist = opts.linkDistance ?? 80
+  const iters = opts.iterations ?? 500
+  const containPad = opts.containPadding ?? 20
+
+  // 更新 CONTAIN_PADDING 为用户配置
+  const effectiveContainPad = containPad
+
+  // 碰撞半径：取 max(containerR, radius) + padding，确保包含圈不重叠
+  const collideRadius = (d: FNode) => Math.max(d.containerR || 0, d.radius) + collidePad
 
   const sim = forceSimulation<FNode>(fNodes)
-    // 地理锚定弹簧力（强度适中，允许碰撞排斥力推开节点）
-    .force('x', forceX<FNode>().x(d => d.anchorX).strength(0.3))
-    .force('y', forceY<FNode>().y(d => d.anchorY).strength(0.3))
-    // 碰撞排斥（使用包含圈半径）
-    .force('collide', forceCollide<FNode>().radius(collideRadius).strength(1).iterations(3))
-    // 通信连接力
-    .force('link', forceLink<FNode, FLink>(fLinks).id(d => d.uuid).distance(80).strength(0.05))
-    // 全局排斥（基于包含圈大小）
-    .force('charge', forceManyBody<FNode>().strength(d => -Math.max(d.containerR || d.radius, d.radius) * 5))
+    .force('x', forceX<FNode>().x(d => d.anchorX).strength(anchorStr))
+    .force('y', forceY<FNode>().y(d => d.anchorY).strength(anchorStr))
+    .force('collide', forceCollide<FNode>().radius(collideRadius).strength(collideStr).iterations(3))
+    .force('link', forceLink<FNode, FLink>(fLinks).id(d => d.uuid).distance(linkDist).strength(linkStr))
+    .force('charge', forceManyBody<FNode>().strength(d => -Math.max(d.containerR || d.radius, d.radius) * chargeStr))
     .stop()
 
-  // 增加迭代次数确保收敛
-  for (let i = 0; i < 500; i++) sim.tick()
+  for (let i = 0; i < iters; i++) sim.tick()
 
   // 确保所有节点都有坐标
   fNodes.forEach(n => {
@@ -294,8 +303,8 @@ export function runForceLayout(
       ? 0
       : circleFitRadius(childFns.length, maxChildR)
 
-    // 确保不超过父圈
-    const effectiveR = Math.min(arrangeR, parentR - maxChildR - CONTAIN_PADDING / 2)
+    // 确保不超过父圈（使用动态 padding）
+    const effectiveR = Math.min(arrangeR, parentR - maxChildR - effectiveContainPad / 2)
 
     childFns.forEach((fn, i) => {
       const angle = -Math.PI / 2 + (2 * Math.PI / childFns.length) * i

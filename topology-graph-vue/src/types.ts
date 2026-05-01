@@ -91,6 +91,26 @@ export type TooltipFormatter = (
 /** 节点上要显示的属性标签键名列表 */
 export type NodeLabelKeys = string[] | ((node: TopoNode) => { key: string; value: string }[])
 
+/** 力布局可调参数 */
+export interface ForceConfig {
+  /** 地理锚定力强度 (0~1)，越大节点越贴近原始经纬度位置，默认 0.3 */
+  anchorStrength?: number
+  /** 碰撞排斥力强度 (0~2)，越大包含圈之间距离越远，默认 1.0 */
+  collideStrength?: number
+  /** 碰撞排斥额外间距 (0~50)，碰撞半径 = max(containerR, radius) + 此值，默认 10 */
+  collidePadding?: number
+  /** 全局排斥力倍数 (0~20)，越大所有节点互相排斥越强，默认 5 */
+  chargeStrength?: number
+  /** 连接线力度 (0~1)，默认 0.05 */
+  linkStrength?: number
+  /** 连接线理想距离 (10~300)，默认 80 */
+  linkDistance?: number
+  /** 力模拟迭代次数 (50~2000)，越多结果越稳定但越慢，默认 500 */
+  iterations?: number
+  /** 包含圈内边距 (5~60)，子节点到包含圈边缘的最小距离，默认 20 */
+  containPadding?: number
+}
+
 /** 组件 Props */
 export interface TopologyGraphProps {
   data: TopologyData
@@ -108,6 +128,8 @@ export interface TopologyGraphProps {
   nodeLabels?: NodeLabelKeys
   /** 自定义 tooltip 格式化 */
   tooltipFormatter?: TooltipFormatter
+  /** 力布局参数配置 */
+  forceConfig?: ForceConfig
 }
 
 /* ---------- 内部计算类型 ---------- */

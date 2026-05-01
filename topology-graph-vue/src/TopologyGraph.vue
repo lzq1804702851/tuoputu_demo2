@@ -189,6 +189,7 @@ function computeLayout() {
     finalNodeTypes.value,
     finalRelationTypes.value,
     projConfig,
+    props.forceConfig,
   )
 
   layoutNodes = result.nodes
@@ -566,6 +567,7 @@ onMounted(async () => {
 })
 
 watch(() => props.data, () => { computeLayout(); doRender() }, { deep: true })
+watch(() => props.forceConfig, () => { computeLayout(); doRender() }, { deep: true })
 </script>
 
 <style>
