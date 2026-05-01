@@ -250,19 +250,23 @@ export function runForceLayout(
   }
 
   // 6. 运行力导向模拟
+  // 碰撞半径：取 max(containerR, radius)，确保包含圈不重叠
+  const collideRadius = (d: FNode) => Math.max(d.containerR || 0, d.radius) + 10
+
   const sim = forceSimulation<FNode>(fNodes)
-    // 地理锚定弹簧力
-    .force('x', forceX<FNode>().x(d => d.anchorX).strength(0.8))
-    .force('y', forceY<FNode>().y(d => d.anchorY).strength(0.8))
-    // 碰撞排斥
-    .force('collide', forceCollide<FNode>().radius(d => d.radius + 8).strength(0.9))
+    // 地理锚定弹簧力（强度适中，允许碰撞排斥力推开节点）
+    .force('x', forceX<FNode>().x(d => d.anchorX).strength(0.3))
+    .force('y', forceY<FNode>().y(d => d.anchorY).strength(0.3))
+    // 碰撞排斥（使用包含圈半径）
+    .force('collide', forceCollide<FNode>().radius(collideRadius).strength(1).iterations(3))
     // 通信连接力
-    .force('link', forceLink<FNode, FLink>(fLinks).id(d => d.uuid).distance(80).strength(0.1))
-    // 全局微弱排斥
-    .force('charge', forceManyBody<FNode>().strength(d => -d.radius * 8))
+    .force('link', forceLink<FNode, FLink>(fLinks).id(d => d.uuid).distance(80).strength(0.05))
+    // 全局排斥（基于包含圈大小）
+    .force('charge', forceManyBody<FNode>().strength(d => -Math.max(d.containerR || d.radius, d.radius) * 5))
     .stop()
 
-  for (let i = 0; i < 300; i++) sim.tick()
+  // 增加迭代次数确保收敛
+  for (let i = 0; i < 500; i++) sim.tick()
 
   // 确保所有节点都有坐标
   fNodes.forEach(n => {

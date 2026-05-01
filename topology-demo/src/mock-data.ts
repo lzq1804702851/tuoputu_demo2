@@ -1,113 +1,110 @@
 import type { TopologyData } from 'topology-graph-vue'
 
 /**
- * 南海区域拓扑图 Mock 数据
- * 坐标范围：经度 108-122°E，纬度 3-22°N
- * 包含：海南岛通信网、大洲岛通信网、海上路由站、货船队、西沙/南沙通信站
+ * 福州市区域拓扑图 Mock 数据
+ * 中心坐标：福州市 (119.3°E, 26.08°N)
+ * 节点分布在福州市及周边 ±0.5° 范围内
  */
 export const mockData: TopologyData = {
   nodes: [
-    /* ======== 海南岛通信网 ======== */
-    // 海南岛1号通信站
+    /* ======== 福州市核心通信网 ======== */
+    // 福州市核心通信站（包含多个子设备）
     {
-      uuid: 'hn-sta1', name: '海南岛1号通信站', type_id: 'station',
-      status: 'online', lng: 109.6, lat: 19.5,
-      extra: { address: '海口市', ip: '192.168.1.1', capacity: '100Mbps' },
+      uuid: 'fz-core', name: '福州市核心通信站', type_id: 'station',
+      status: 'online', lng: 119.30, lat: 26.08,
+      extra: { address: '福州市鼓楼区', ip: '192.168.0.1', capacity: '1Gbps' },
     },
-    // 海南岛2号通信站
+    // 福州市备用通信站
     {
-      uuid: 'hn-sta2', name: '海南岛2号通信站', type_id: 'station',
-      status: 'online', lng: 110.0, lat: 18.8,
-      extra: { address: '三亚市', ip: '192.168.1.2', capacity: '80Mbps' },
+      uuid: 'fz-backup', name: '福州市备用通信站', type_id: 'station',
+      status: 'online', lng: 119.32, lat: 26.06,
+      extra: { address: '福州市台江区', ip: '192.168.0.2', capacity: '500Mbps' },
     },
-    // 海南岛核心路由器
+    // 马尾港通信站
     {
-      uuid: 'hn-router', name: '海南岛核心路由器', type_id: 'router',
-      status: 'offline', lng: 109.8, lat: 19.0,
+      uuid: 'mw-sta', name: '马尾港通信站', type_id: 'station',
+      status: 'online', lng: 119.46, lat: 26.00,
+      extra: { address: '马尾区', ip: '192.168.0.3', capacity: '200Mbps' },
+    },
+    // 长乐机场通信站
+    {
+      uuid: 'cl-sta', name: '长乐机场通信站', type_id: 'station',
+      status: 'warning', lng: 119.50, lat: 25.93,
+      extra: { address: '长乐区', ip: '192.168.0.4', capacity: '300Mbps', alert: '信号波动' },
+    },
+
+    /* ======== 核心路由器 ======== */
+    {
+      uuid: 'fz-router1', name: '核心路由器A', type_id: 'router',
+      status: 'online', lng: 119.29, lat: 26.09,
       extra: { ip: '10.0.0.1', model: 'H3C SR8800', ports: 48 },
     },
-    // 海南岛通信机1
     {
-      uuid: 'hn-comm1', name: '海口通信机', type_id: 'comm',
-      status: 'online', lng: 109.55, lat: 19.6,
-      extra: { ip: '10.0.1.1', frequency: '2.4GHz' },
-    },
-    // 海南岛通信机2
-    {
-      uuid: 'hn-comm2', name: '三亚通信机', type_id: 'comm',
-      status: 'online', lng: 110.05, lat: 18.75,
-      extra: { ip: '10.0.1.2', frequency: '5GHz' },
-    },
-    // 海南岛终端
-    {
-      uuid: 'hn-term1', name: '海口终端A', type_id: 'terminal',
-      status: 'online', lng: 109.5, lat: 19.7,
-    },
-    {
-      uuid: 'hn-term2', name: '三亚终端B', type_id: 'terminal',
-      status: 'offline', lng: 110.1, lat: 18.7,
+      uuid: 'fz-router2', name: '核心路由器B', type_id: 'router',
+      status: 'offline', lng: 119.33, lat: 26.05,
+      extra: { ip: '10.0.0.2', model: 'Cisco 7600', ports: 96 },
     },
 
-    /* ======== 大洲岛通信网 ======== */
+    /* ======== 通信机 ======== */
     {
-      uuid: 'dz-comm', name: '大洲岛通信机', type_id: 'comm',
-      status: 'online', lng: 110.95, lat: 18.55,
-      extra: { ip: '10.0.2.1', frequency: '2.4GHz' },
+      uuid: 'fz-comm1', name: '鼓楼通信机', type_id: 'comm',
+      status: 'online', lng: 119.28, lat: 26.10,
+      extra: { ip: '10.0.1.1', frequency: '5GHz' },
     },
     {
-      uuid: 'dz-router', name: '大洲岛路由器', type_id: 'router',
-      status: 'online', lng: 111.05, lat: 18.45,
-      extra: { ip: '10.0.2.2', model: 'Cisco 3900' },
+      uuid: 'fz-comm2', name: '台江通信机', type_id: 'comm',
+      status: 'online', lng: 119.31, lat: 26.07,
+      extra: { ip: '10.0.1.2', frequency: '2.4GHz' },
     },
     {
-      uuid: 'dz-term', name: '大洲岛终端', type_id: 'terminal',
-      status: 'online', lng: 110.9, lat: 18.6,
-    },
-
-    /* ======== 海上路由站 ======== */
-    {
-      uuid: 'sea-relay', name: '海上有线路由站', type_id: 'station',
-      status: 'online', lng: 112.5, lat: 16.0,
-      extra: { type: '海上中继', depth: '海底光缆' },
+      uuid: 'fz-comm3', name: '马尾通信机', type_id: 'comm',
+      status: 'online', lng: 119.47, lat: 26.01,
+      extra: { ip: '10.0.1.3', frequency: '5GHz' },
     },
     {
-      uuid: 'sea-router', name: '海上核心路由器', type_id: 'router',
-      status: 'online', lng: 112.5, lat: 15.8,
-      extra: { ip: '10.0.100.1', model: 'Huawei NE40E', redundancy: '双机热备' },
+      uuid: 'fz-comm4', name: '长乐通信机', type_id: 'comm',
+      status: 'warning', lng: 119.51, lat: 25.94,
+      extra: { ip: '10.0.1.4', frequency: '卫星', alert: '信号弱' },
     },
 
-    /* ======== 西沙通信站 ======== */
+    /* ======== 终端设备 ======== */
     {
-      uuid: 'xisha-sta', name: '西沙通信站', type_id: 'station',
-      status: 'online', lng: 112.3, lat: 16.8,
-      extra: { area: '西沙永兴岛', ip: '10.0.3.1' },
+      uuid: 'fz-term1', name: '鼓楼终端A', type_id: 'terminal',
+      status: 'online', lng: 119.295, lat: 26.085,
     },
     {
-      uuid: 'xisha-comm', name: '西沙通信机', type_id: 'comm',
-      status: 'online', lng: 112.25, lat: 16.85,
-      extra: { ip: '10.0.3.2', frequency: '卫星通信' },
-    },
-
-    /* ======== 南沙通信站 ======== */
-    {
-      uuid: 'nansha-sta', name: '南沙通信站', type_id: 'station',
-      status: 'online', lng: 114.2, lat: 10.0,
-      extra: { area: '南沙渚碧礁', ip: '10.0.4.1' },
+      uuid: 'fz-term2', name: '台江终端B', type_id: 'terminal',
+      status: 'offline', lng: 119.315, lat: 26.065,
     },
     {
-      uuid: 'nansha-comm', name: '南沙通信机', type_id: 'comm',
-      status: 'warning', lng: 114.25, lat: 9.95,
-      extra: { ip: '10.0.4.2', frequency: '卫星通信', alert: '信号弱' },
+      uuid: 'fz-term3', name: '马尾终端C', type_id: 'terminal',
+      status: 'online', lng: 119.465, lat: 25.995,
+    },
+    {
+      uuid: 'fz-term4', name: '长乐终端D', type_id: 'terminal',
+      status: 'online', lng: 119.505, lat: 25.935,
     },
 
-    /* ======== 货船队 (10艘) ======== */
-    ...Array.from({ length: 10 }, (_, i) => ({
+    /* ======== GPS ======== */
+    {
+      uuid: 'fz-gps1', name: '核心站GPS', type_id: 'gps',
+      status: 'online', lng: 119.305, lat: 26.075,
+      extra: { accuracy: '±2m' },
+    },
+    {
+      uuid: 'fz-gps2', name: '马尾站GPS', type_id: 'gps',
+      status: 'online', lng: 119.455, lat: 26.005,
+      extra: { accuracy: '±3m' },
+    },
+
+    /* ======== 海上货船 (5艘) ======== */
+    ...Array.from({ length: 5 }, (_, i) => ({
       uuid: `ship${i}`,
-      name: `${i + 1}号货船`,
+      name: `闽货${i + 1}号`,
       type_id: 'ship' as const,
-      status: (i === 2 || i === 7) ? 'offline' as const : 'online' as const,
-      lng: 109 + Math.random() * 8,
-      lat: 8 + Math.random() * 10,
+      status: i === 2 ? 'offline' as const : 'online' as const,
+      lng: 119.35 + i * 0.08 + (Math.random() - 0.5) * 0.02,
+      lat: 25.85 + Math.random() * 0.1,
       extra: {
         speed: (8 + Math.random() * 12).toFixed(1) + '节',
         heading: Math.floor(Math.random() * 360) + '°',
@@ -116,88 +113,97 @@ export const mockData: TopologyData = {
       },
     })),
 
-    /* ======== 船上设备（每艘船的通信机和终端）======== */
-    ...Array.from({ length: 10 }, (_, i) => [
+    /* ======== 船上设备 ======== */
+    ...Array.from({ length: 5 }, (_, i) => [
       {
         uuid: `s${i}-comm`,
-        name: `${i + 1}号船通信机`,
+        name: `闽货${i + 1}号通信机`,
         type_id: 'comm' as const,
-        status: (i === 2 || i === 7) ? 'offline' as const : 'online' as const,
-        lng: 109 + Math.random() * 8,
-        lat: 8 + Math.random() * 10,
-        extra: { ip: `10.1.${i}.1`, frequency: i % 3 === 0 ? '卫星' : 'VHF' },
+        status: i === 2 ? 'offline' as const : 'online' as const,
+        lng: 119.35 + i * 0.08 + (Math.random() - 0.5) * 0.01,
+        lat: 25.85 + Math.random() * 0.08,
+        extra: { ip: `10.1.${i}.1`, frequency: i % 2 === 0 ? '卫星' : 'VHF' },
       },
       {
         uuid: `s${i}-term`,
-        name: `${i + 1}号船终端`,
+        name: `闽货${i + 1}号终端`,
         type_id: 'terminal' as const,
         status: i === 0 ? 'offline' as const : 'online' as const,
-        lng: 109 + Math.random() * 8,
-        lat: 8 + Math.random() * 10,
+        lng: 119.35 + i * 0.08 + (Math.random() - 0.5) * 0.01,
+        lat: 25.85 + Math.random() * 0.08,
         extra: {},
       },
       {
         uuid: `s${i}-gps`,
-        name: `${i + 1}号船GPS`,
+        name: `闽货${i + 1}号GPS`,
         type_id: 'gps' as const,
         status: i === 4 ? 'offline' as const : 'online' as const,
-        lng: 109 + Math.random() * 8,
-        lat: 8 + Math.random() * 10,
-        extra: { accuracy: '±2m' },
+        lng: 119.35 + i * 0.08 + (Math.random() - 0.5) * 0.01,
+        lat: 25.85 + Math.random() * 0.08,
+        extra: { accuracy: '±5m' },
       },
     ]).flat(),
   ],
 
   relations: [
     /* ======== 包含关系 ======== */
-    // 海南岛站点包含其子设备
-    { uuid: 'c-hn-comm1', name: '', type_id: 'contain', status: 'active', from_id: 'hn-sta1', to_id: 'hn-comm1' },
-    { uuid: 'c-hn-term1', name: '', type_id: 'contain', status: 'active', from_id: 'hn-sta1', to_id: 'hn-term1' },
-    { uuid: 'c-hn-comm2', name: '', type_id: 'contain', status: 'active', from_id: 'hn-sta2', to_id: 'hn-comm2' },
-    { uuid: 'c-hn-term2', name: '', type_id: 'contain', status: 'active', from_id: 'hn-sta2', to_id: 'hn-term2' },
-    // 海上路由站包含
-    { uuid: 'c-sea-router', name: '', type_id: 'contain', status: 'active', from_id: 'sea-relay', to_id: 'sea-router' },
-    // 西沙站包含
-    { uuid: 'c-xisha-comm', name: '', type_id: 'contain', status: 'active', from_id: 'xisha-sta', to_id: 'xisha-comm' },
-    // 南沙站包含
-    { uuid: 'c-nansha-comm', name: '', type_id: 'contain', status: 'active', from_id: 'nansha-sta', to_id: 'nansha-comm' },
+    // 福州市核心通信站包含子设备
+    { uuid: 'c-core-r1', name: '', type_id: 'contain', status: 'active', from_id: 'fz-core', to_id: 'fz-router1' },
+    { uuid: 'c-core-c1', name: '', type_id: 'contain', status: 'active', from_id: 'fz-core', to_id: 'fz-comm1' },
+    { uuid: 'c-core-t1', name: '', type_id: 'contain', status: 'active', from_id: 'fz-core', to_id: 'fz-term1' },
+    { uuid: 'c-core-g1', name: '', type_id: 'contain', status: 'active', from_id: 'fz-core', to_id: 'fz-gps1' },
+
+    // 福州市备用通信站包含子设备
+    { uuid: 'c-back-r2', name: '', type_id: 'contain', status: 'active', from_id: 'fz-backup', to_id: 'fz-router2' },
+    { uuid: 'c-back-c2', name: '', type_id: 'contain', status: 'active', from_id: 'fz-backup', to_id: 'fz-comm2' },
+    { uuid: 'c-back-t2', name: '', type_id: 'contain', status: 'active', from_id: 'fz-backup', to_id: 'fz-term2' },
+
+    // 马尾港通信站包含子设备
+    { uuid: 'c-mw-c3', name: '', type_id: 'contain', status: 'active', from_id: 'mw-sta', to_id: 'fz-comm3' },
+    { uuid: 'c-mw-t3', name: '', type_id: 'contain', status: 'active', from_id: 'mw-sta', to_id: 'fz-term3' },
+    { uuid: 'c-mw-g2', name: '', type_id: 'contain', status: 'active', from_id: 'mw-sta', to_id: 'fz-gps2' },
+
+    // 长乐机场通信站包含子设备
+    { uuid: 'c-cl-c4', name: '', type_id: 'contain', status: 'active', from_id: 'cl-sta', to_id: 'fz-comm4' },
+    { uuid: 'c-cl-t4', name: '', type_id: 'contain', status: 'active', from_id: 'cl-sta', to_id: 'fz-term4' },
+
     // 船包含设备
-    ...Array.from({ length: 10 }, (_, i) => [
+    ...Array.from({ length: 5 }, (_, i) => [
       { uuid: `c-s${i}-comm`, name: '', type_id: 'contain' as const, status: 'active' as const, from_id: `ship${i}`, to_id: `s${i}-comm` },
       { uuid: `c-s${i}-term`, name: '', type_id: 'contain' as const, status: 'active' as const, from_id: `ship${i}`, to_id: `s${i}-term` },
       { uuid: `c-s${i}-gps`, name: '', type_id: 'contain' as const, status: 'active' as const, from_id: `ship${i}`, to_id: `s${i}-gps` },
     ]).flat(),
 
     /* ======== 通信关系 ======== */
-    // 岛内通信
-    { uuid: 'l-hn-t1c1', name: '内部通信', type_id: 'wired', status: 'connected', from_id: 'hn-term1', to_id: 'hn-comm1' },
-    { uuid: 'l-hn-t2c2', name: '内部通信', type_id: 'wired', status: 'connected', from_id: 'hn-term2', to_id: 'hn-comm2' },
-    { uuid: 'l-hn-c1r', name: '光纤链路', type_id: 'fiber', status: 'connected', from_id: 'hn-comm1', to_id: 'hn-router' },
-    { uuid: 'l-hn-c2r', name: '光纤链路', type_id: 'fiber', status: 'connected', from_id: 'hn-comm2', to_id: 'hn-router' },
-    { uuid: 'l-dz-tc', name: '内部通信', type_id: 'wired', status: 'connected', from_id: 'dz-term', to_id: 'dz-comm' },
-    { uuid: 'l-dz-cr', name: '光纤链路', type_id: 'fiber', status: 'connected', from_id: 'dz-comm', to_id: 'dz-router' },
+    // 核心站内部通信
+    { uuid: 'l-core-t1c1', name: '内部通信', type_id: 'wired', status: 'connected', from_id: 'fz-term1', to_id: 'fz-comm1' },
+    { uuid: 'l-core-c1r1', name: '光纤链路', type_id: 'fiber', status: 'connected', from_id: 'fz-comm1', to_id: 'fz-router1' },
 
-    // 岛际/海上路由
-    { uuid: 'l-hn-sea', name: '海底光缆', type_id: 'fiber', status: 'connected', from_id: 'hn-router', to_id: 'sea-router', extra: { bandwidth: '10Gbps', length: '280km' } },
-    { uuid: 'l-dz-sea', name: '海底光缆', type_id: 'fiber', status: 'connected', from_id: 'dz-router', to_id: 'sea-router', extra: { bandwidth: '10Gbps', length: '150km' } },
-    { uuid: 'l-xisha-sea', name: '海底光缆', type_id: 'fiber', status: 'connected', from_id: 'xisha-comm', to_id: 'sea-router' },
-    { uuid: 'l-nansha-sea', name: '卫星中继', type_id: 'satellite-link', status: 'connected', from_id: 'nansha-comm', to_id: 'sea-router', extra: { satellite: '中星6B', delay: '250ms' } },
+    // 备用站内部通信
+    { uuid: 'l-back-t2c2', name: '内部通信', type_id: 'wired', status: 'connected', from_id: 'fz-term2', to_id: 'fz-comm2' },
+    { uuid: 'l-back-c2r2', name: '光纤链路', type_id: 'fiber', status: 'connected', from_id: 'fz-comm2', to_id: 'fz-router2' },
 
-    // 船与岸站通信（无线）
-    ...Array.from({ length: 10 }, (_, i) => {
-      const links: Array<{ uuid: string; name: string; type_id: string; status: string; from_id: string; to_id: string; extra?: Record<string, string> }> = [
-        { uuid: `l-s${i}-dz`, name: '无线通信', type_id: 'wireless', status: (i === 2 || i === 7) ? 'disconnected' : 'connected', from_id: `s${i}-comm`, to_id: 'dz-comm', extra: { protocol: 'VHF', distance: Math.floor(50 + Math.random() * 200) + 'km' } },
-        { uuid: `l-s${i}-hn1`, name: '无线通信', type_id: 'wireless', status: (i === 2 || i === 7) ? 'disconnected' : 'connected', from_id: `s${i}-comm`, to_id: 'hn-comm1' },
-        { uuid: `l-s${i}-hn2`, name: '无线通信', type_id: 'wireless', status: (i === 2 || i === 7) ? 'disconnected' : 'connected', from_id: `s${i}-comm`, to_id: 'hn-comm2' },
-      ]
-      // 船内通信
-      links.push({ uuid: `l-s${i}-internal`, name: '船内通信', type_id: 'wired', status: 'connected', from_id: `s${i}-term`, to_id: `s${i}-comm` })
-      return links
-    }).flat(),
+    // 马尾站内部通信
+    { uuid: 'l-mw-t3c3', name: '内部通信', type_id: 'wired', status: 'connected', from_id: 'fz-term3', to_id: 'fz-comm3' },
 
-    // 船与船之间的通信（部分）
+    // 长乐站内部通信
+    { uuid: 'l-cl-t4c4', name: '内部通信', type_id: 'wired', status: 'connected', from_id: 'fz-term4', to_id: 'fz-comm4' },
+
+    // 站间骨干链路
+    { uuid: 'l-core-back', name: '骨干光缆', type_id: 'fiber', status: 'connected', from_id: 'fz-router1', to_id: 'fz-router2', extra: { bandwidth: '10Gbps' } },
+    { uuid: 'l-core-mw', name: '骨干光缆', type_id: 'fiber', status: 'connected', from_id: 'fz-router1', to_id: 'fz-comm3', extra: { bandwidth: '1Gbps' } },
+    { uuid: 'l-core-cl', name: '无线中继', type_id: 'satellite-link', status: 'connected', from_id: 'fz-router1', to_id: 'fz-comm4', extra: { delay: '15ms' } },
+
+    // 船与岸站通信
+    ...Array.from({ length: 5 }, (_, i) => [
+      { uuid: `l-s${i}-core`, name: '无线通信', type_id: 'wireless', status: i === 2 ? 'disconnected' as const : 'connected' as const, from_id: `s${i}-comm`, to_id: 'fz-comm1', extra: { protocol: 'VHF', distance: Math.floor(10 + Math.random() * 30) + 'km' } },
+      { uuid: `l-s${i}-mw`, name: '无线通信', type_id: 'wireless', status: i === 2 ? 'disconnected' as const : 'connected' as const, from_id: `s${i}-comm`, to_id: 'fz-comm3' },
+      { uuid: `l-s${i}-internal`, name: '船内通信', type_id: 'wired', status: 'connected' as const, from_id: `s${i}-term`, to_id: `s${i}-comm` },
+    ]).flat(),
+
+    // 船间通信
     { uuid: 'l-ss-01', name: '船间通信', type_id: 'wireless', status: 'connected', from_id: 'ship0', to_id: 'ship1', extra: { protocol: 'AIS' } },
-    { uuid: 'l-ss-34', name: '船间通信', type_id: 'wireless', status: 'disconnected', from_id: 'ship3', to_id: 'ship4', extra: { protocol: 'AIS', reason: '超出范围' } },
-    { uuid: 'l-ss-56', name: '船间通信', type_id: 'wireless', status: 'connected', from_id: 'ship5', to_id: 'ship6', extra: { protocol: 'AIS' } },
+    { uuid: 'l-ss-23', name: '船间通信', type_id: 'wireless', status: 'disconnected', from_id: 'ship2', to_id: 'ship3', extra: { protocol: 'AIS', reason: '超出范围' } },
+    { uuid: 'l-ss-34', name: '船间通信', type_id: 'wireless', status: 'connected', from_id: 'ship3', to_id: 'ship4', extra: { protocol: 'AIS' } },
   ].flat(),
 }

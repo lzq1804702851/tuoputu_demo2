@@ -5,8 +5,8 @@
     :relation-types="relationTypeConfig"
     :legend="legendConfig"
     :show-toolbar="true"
-    :map-center-lng="110"
-    :map-center-lat="15"
+    :map-center-lng="119.3"
+    :map-center-lat="26.08"
     :map-zoom="1"
     :node-labels="['ip', 'speed']"
   />

@@ -218,24 +218,23 @@ function computeLayout() {
 
   updateStats()
 
-  // 自动适配 viewBox（展示节点周围更大范围的地图背景）
+  // 自动适配 viewBox（紧凑包裹所有节点，尽可能放大显示）
   if (layoutNodes.length === 0) return
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
   layoutNodes.forEach(cn => {
-    const pad = cn.isContainer ? (cn.containerR || cn.r) + 30 : cn.r + 30
+    // 对于容器节点，使用 containerR；否则使用普通半径 + 标签空间
+    const pad = cn.isContainer ? (cn.containerR || cn.r) + 25 : cn.r + 20
     if (cn.x - pad < minX) minX = cn.x - pad
     if (cn.y - pad < minY) minY = cn.y - pad
     if (cn.x + pad > maxX) maxX = cn.x + pad
     if (cn.y + pad > maxY) maxY = cn.y + pad
   })
-  // 扩展 viewBox 以展示更多地图背景（8倍范围）
-  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2
-  const halfW = Math.max((maxX - minX) * 4 + 60, projConfig.width * 0.3)
-  const halfH = Math.max((maxY - minY) * 4 + 60, projConfig.height * 0.3)
-  vb.x = cx - halfW
-  vb.y = cy - halfH
-  vb.w = halfW * 2
-  vb.h = halfH * 2
+  // 紧凑 viewBox：仅包裹所有节点 + 少量 padding
+  const pad = 40
+  vb.x = minX - pad
+  vb.y = minY - pad
+  vb.w = (maxX - minX) + pad * 2
+  vb.h = (maxY - minY) + pad * 2
 }
 
 /* ========== 筛选关联 ========== */
