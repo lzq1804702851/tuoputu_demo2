@@ -500,8 +500,8 @@ function onMove(e: MouseEvent) {
       if (parentId) {
         const parent = nodeMap.get(parentId)
         if (parent && parent.containerR) {
-          // 子节点约束在实际布局半径内（视觉半径仅用于绘制圆圈，不影响交互范围）
-          const maxDist = parent.containerR - cn.r - 1
+          // 子节点中心距父中心最大距离 = 父半径 - 子半径（确保子圆不溢出父圆）
+          const maxDist = parent.containerR - cn.r
           const dx = newX - parent.x
           const dy = newY - parent.y
           const dist = Math.sqrt(dx * dx + dy * dy)
