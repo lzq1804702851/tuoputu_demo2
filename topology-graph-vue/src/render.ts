@@ -64,19 +64,21 @@ function renderContainmentCircles(
   nodeTypes: Record<string, NodeTypeConfig>,
 ) {
   for (const cn of tree) {
+    // 只渲染有子节点的容器圈，叶子节点由 renderNode() 负责渲染单圈
+    if (cn.children.length === 0) continue
+
     const opacity = dim ? 0.05 : Math.max(0.15, 0.5 - cn.depth * 0.1)
     const status = cn.node.status
     const statusColor = statusColors[status] || '#38bdf8'
     const isOffline = status === 'offline' || status === 'error'
     const isWarning = status === 'warning'
 
-
-    // 画包含圈（实线，颜色反映状态）
+    // 画包含圈
     el('circle', {
       cx: cn.x, cy: cn.y, r: cn.r,
       fill: isOffline ? '#ef444410' : isWarning ? '#f59e0b08' : 'transparent',
       stroke: isOffline ? '#ef4444' : isWarning ? '#f59e0b' : statusColor,
-      'stroke-width': Math.max(0.1, 0.3 - cn.depth * 0.05),
+      'stroke-width': Math.max(0.03, 0.1 - cn.depth * 0.02),
       opacity,
       'data-cid': cn.node.uuid,
       cursor: 'grab',
@@ -99,9 +101,7 @@ function renderContainmentCircles(
     }, labelLayer)
 
     // 递归渲染子包含圈
-    if (cn.children.length > 0) {
-      renderContainmentCircles(layer, labelLayer, cn.children, dim, nodeMap, nodeTypes)
-    }
+    renderContainmentCircles(layer, labelLayer, cn.children, dim, nodeMap, nodeTypes)
   }
 }
 
@@ -126,10 +126,10 @@ function drawLink(
 
   const dx = toX - fromX, dy = toY - fromY
   const len = Math.sqrt(dx * dx + dy * dy) || 1
-  const x1 = fromX + dx / len * (fromR + 0.5)
-  const y1 = fromY + dy / len * (fromR + 0.5)
-  const x2 = toX - dx / len * (toR + 0.5)
-  const y2 = toY - dy / len * (toR + 0.5)
+  const x1 = fromX + dx / len * fromR
+  const y1 = fromY + dy / len * fromR
+  const x2 = toX - dx / len * toR
+  const y2 = toY - dy / len * toR
   const op = extra.opacity ?? 1
 
   // 稍微弯曲以避免重叠
@@ -142,14 +142,12 @@ function drawLink(
     fill: 'none',
     stroke: cfg.color,
     'stroke-width': cfg.width,
-    'stroke-dasharray': cfg.dash || undefined,
     opacity: op,
     'data-rid': cr.relation.uuid,
   }
 
-  // 根据关系状态调整样式
+  // 根据关系状态调整样式（断开的连线变红变淡，但不使用虚线）
   if (cr.relation.status === 'disconnected' || cr.relation.status === 'offline') {
-    attrs['stroke-dasharray'] = '3 5'
     attrs.stroke = '#ef4444'
     attrs.opacity = op * 0.5
   }
@@ -202,22 +200,23 @@ function renderNode(
   const statusColor = statusColors[node.status] || '#64748b'
 
 
-  // 主圆
+  // 主圆（叶子节点只有一个圈）
   el('circle', {
     cx: x, cy: y, r,
-    fill: isOffline ? '#ef444425' : 'transparent',
+    fill: isOffline ? '#ef444425' : '#1e293b80',
     stroke: isOffline ? '#ef4444' : statusColor,
-    'stroke-width': isOffline ? 0.2 : 0.1,
+    'stroke-width': isOffline ? 0.08 : 0.04,
     opacity: op,
     'data-nid': node.uuid,
     cursor: 'grab',
   }, nodeLayer)
 
-  // 图标
+  // 图标（在圆圈内部中心）
   txt(icon, {
-    x, y: y - 0.5,
+    x, y: y + 0.1,
     'text-anchor': 'middle',
-    'font-size': r > 1 ? 0.3 : 0.2,
+    'dominant-baseline': 'central',
+    'font-size': r > 1 ? 0.35 : 0.25,
     opacity: op,
     'data-nid': node.uuid,
     cursor: 'grab',

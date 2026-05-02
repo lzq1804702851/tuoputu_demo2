@@ -18,8 +18,8 @@ import type {
 import { createProjection } from './projection'
 
 const MAX_DEPTH = 5
-const NODE_MARGIN = 0.3
-const CONTAIN_PADDING = 1.5
+const NODE_MARGIN = 0.1
+const CONTAIN_PADDING = 0.5
 
 /* ========== 包含树构建 ========== */
 
@@ -259,10 +259,7 @@ export function runForceLayout(
   const linkStr = opts.linkStrength ?? 0.05
   const linkDist = opts.linkDistance ?? 80
   const iters = opts.iterations ?? 500
-  const containPad = opts.containPadding ?? 20
-
-  // 更新 CONTAIN_PADDING 为用户配置
-  const effectiveContainPad = containPad
+  const containPadRatio = opts.containPadding ?? 0.12
 
   // 碰撞半径：取 max(containerR, radius) + padding，确保包含圈不重叠
   const collideRadius = (d: FNode) => Math.max(d.containerR || 0, d.radius) + collidePad
@@ -303,8 +300,8 @@ export function runForceLayout(
       ? 0
       : circleFitRadius(childFns.length, maxChildR)
 
-    // 确保不超过父圈（使用动态 padding）
-    const effectiveR = Math.min(arrangeR, parentR - maxChildR - effectiveContainPad / 2)
+    // 确保不超过父圈（使用比例 padding，父圈半径的 12%）
+    const effectiveR = Math.min(arrangeR, parentR - maxChildR - parentR * containPadRatio)
 
     childFns.forEach((fn, i) => {
       const angle = -Math.PI / 2 + (2 * Math.PI / childFns.length) * i
@@ -358,7 +355,7 @@ export function runForceLayout(
       const toFn = fNodeMap.get(rel.to_id)
       if (!fromFn || !toFn) return null
       const cfg = relationConfigs[rel.type_id] || {
-        color: '#475569', width: 1, dash: '4 2', name: rel.type_id, isContain: false,
+        color: '#475569', width: 1, dash: '', name: rel.type_id, isContain: false,
       }
       return {
         relation: rel,
