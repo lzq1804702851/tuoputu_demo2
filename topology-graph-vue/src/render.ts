@@ -62,6 +62,7 @@ function renderContainmentCircles(
   tree: ContainmentNode[], dim: boolean,
   nodeMap: Map<string, ComputedNode>,
   nodeTypes: Record<string, NodeTypeConfig>,
+  nodeScale = 1,
 ) {
   for (const cn of tree) {
     // 只渲染有子节点的容器圈，叶子节点由 renderNode() 负责渲染单圈
@@ -72,6 +73,7 @@ function renderContainmentCircles(
     const statusColor = statusColors[status] || '#38bdf8'
     const isOffline = status === 'offline' || status === 'error'
     const isWarning = status === 'warning'
+    const s = nodeScale
 
     // 画包含圈
     el('circle', {
@@ -84,13 +86,13 @@ function renderContainmentCircles(
       cursor: 'grab',
     }, layer)
 
-    // 标签（大圆正上方，名称前加类型图标）
-    const fontSize = Math.max(0.2, 0.5 - cn.depth * 0.1)
+    // 标签（大圆正上方，名称前加类型图标）—— 字体大小和偏移随 nodeScale 缩放
+    const fontSize = Math.max(0.2, 0.5 - cn.depth * 0.1) * s
     const typeIcon = nodeTypes[cn.node.type_id]?.icon || ''
     const displayName = typeIcon + ' ' + cn.node.name
     txt(displayName, {
       x: cn.x,
-      y: cn.y - cn.r - 0.2,
+      y: cn.y - cn.r - 0.2 * s,
       'text-anchor': 'middle',
       fill: isOffline ? '#fca5a5' : isWarning ? '#fbbf24' : '#38bdf8',
       'font-size': fontSize,
@@ -101,7 +103,7 @@ function renderContainmentCircles(
     }, labelLayer)
 
     // 递归渲染子包含圈
-    renderContainmentCircles(layer, labelLayer, cn.children, dim, nodeMap, nodeTypes)
+    renderContainmentCircles(layer, labelLayer, cn.children, dim, nodeMap, nodeTypes, nodeScale)
   }
 }
 
@@ -193,12 +195,13 @@ function renderNode(
   labelLayer: Element,
   dim: boolean,
   nodeLabels?: NodeLabelKeys,
+  nodeScale = 1,
 ) {
   const { x, y, r, icon, color, node } = cn
   const op = dim ? 0.06 : 1
   const isOffline = node.status === 'offline' || node.status === 'error'
   const statusColor = statusColors[node.status] || '#64748b'
-
+  const s = nodeScale // shorthand
 
   // 主圆（叶子节点只有一个圈）
   el('circle', {
@@ -211,29 +214,29 @@ function renderNode(
     cursor: 'grab',
   }, nodeLayer)
 
-  // 图标（在圆圈内部中心）
+  // 图标（在圆圈内部中心）—— 大小随 nodeScale 缩放
   txt(icon, {
-    x, y: y + 0.1,
+    x, y: y + 0.1 * s,
     'text-anchor': 'middle',
     'dominant-baseline': 'central',
-    'font-size': r > 1 ? 0.35 : 0.25,
+    'font-size': (r > 1 ? 0.35 : 0.25) * s,
     opacity: op,
     'data-nid': node.uuid,
     cursor: 'grab',
   }, nodeLayer)
 
-  // 节点名称（圆圈正上方）
+  // 节点名称（圆圈正上方）—— 字体大小和偏移随 nodeScale 缩放
   txt(node.name, {
-    x, y: y - r - 0.1,
+    x, y: y - r - 0.1 * s,
     'text-anchor': 'middle',
     fill: isOffline ? '#fca5a5' : '#94a3b8',
-    'font-size': 0.2,
+    'font-size': 0.2 * s,
     opacity: op,
     'data-nid': node.uuid,
     cursor: 'grab',
   }, labelLayer)
 
-  // 额外属性标签
+  // 额外属性标签 —— 字体大小和偏移随 nodeScale 缩放
   if (nodeLabels && node.extra) {
     const labels = typeof nodeLabels === 'function'
       ? nodeLabels(node)
@@ -243,10 +246,10 @@ function renderNode(
 
     labels.forEach((item, idx) => {
       txt(`${item.key}: ${item.value}`, {
-        x, y: y + r + 0.8 + idx * 0.5,
+        x, y: y + r + 0.8 * s + idx * 0.5 * s,
         'text-anchor': 'middle',
         fill: '#64748b',
-        'font-size': 0.2,
+        'font-size': 0.2 * s,
         opacity: op * 0.7,
         'data-nid': node.uuid,
         cursor: 'grab',
@@ -262,6 +265,7 @@ export function render(
   vb: { x: number; y: number; w: number; h: number },
   projectedMapFeatures: ProjectedFeature[],
   nodeLabels?: NodeLabelKeys,
+  nodeScale = 1,
 ) {
   while (svg.firstChild) svg.removeChild(svg.firstChild)
   svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`)
@@ -293,7 +297,7 @@ export function render(
   const circleLayer = el('g', { class: 'tg-circles' }, svg)
   const circleLabelLayer = el('g', { class: 'tg-circle-labels' }, svg)
   const anyDim = !!filterMode
-  renderContainmentCircles(circleLayer, circleLabelLayer, containmentTree, anyDim, state.nodeMap, state.nodeTypes)
+  renderContainmentCircles(circleLayer, circleLabelLayer, containmentTree, anyDim, state.nodeMap, state.nodeTypes, nodeScale)
 
   // Layer 2: 通信连线
   const linkLayer = el('g', { class: 'tg-links' }, svg)
@@ -310,7 +314,7 @@ export function render(
       // 容器节点：不画图标和名称（由包含圈标签层渲染名称，无图标）
       // 只有叶子节点才在圆心显示类型图标
     } else {
-      renderNode(cn, nodeLayer, nodeLabelLayer, isNodeDim(cn), nodeLabels)
+      renderNode(cn, nodeLayer, nodeLabelLayer, isNodeDim(cn), nodeLabels, nodeScale)
     }
   })
 }

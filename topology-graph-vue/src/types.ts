@@ -130,6 +130,8 @@ export interface TopologyGraphProps {
   tooltipFormatter?: TooltipFormatter
   /** 力布局参数配置 */
   forceConfig?: ForceConfig
+  /** 节点大小缩放倍数 (0.1~5)，默认 1 */
+  nodeScale?: number
 }
 
 /* ---------- 内部计算类型 ---------- */

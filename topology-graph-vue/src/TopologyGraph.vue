@@ -190,6 +190,7 @@ function computeLayout() {
     finalRelationTypes.value,
     projConfig,
     props.forceConfig,
+    props.nodeScale,
   )
 
   layoutNodes = result.nodes
@@ -311,7 +312,7 @@ function doRender() {
     relationTypes: finalRelationTypes.value,
     legend: mergedLegend.value,
   }
-  render(svgEl.value, state, vb, projectedFeatures, props.nodeLabels)
+  render(svgEl.value, state, vb, projectedFeatures, props.nodeLabels, props.nodeScale)
 }
 
 /* ========== 悬浮信息窗 ========== */
@@ -568,6 +569,7 @@ onMounted(async () => {
 
 watch(() => props.data, () => { computeLayout(); doRender() }, { deep: true })
 watch(() => props.forceConfig, () => { computeLayout(); doRender() }, { deep: true })
+watch(() => props.nodeScale, () => { computeLayout(); doRender() })
 </script>
 
 <style>

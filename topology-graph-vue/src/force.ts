@@ -156,11 +156,19 @@ export function runForceLayout(
   relationConfigs: Record<string, RelationTypeConfig>,
   projConfig: ProjectionConfig,
   forceOpts?: ForceConfig,
+  nodeScale?: number,
 ): {
   nodes: ComputedNode[]
   relations: ComputedRelation[]
   containmentTree: ContainmentNode[]
 } {
+  // 0. 应用节点缩放
+  const scale = nodeScale && nodeScale > 0 ? nodeScale : 1
+  const scaledNodeConfigs: Record<string, NodeTypeConfig> = {}
+  for (const [k, v] of Object.entries(nodeConfigs)) {
+    scaledNodeConfigs[k] = { ...v, radius: (v.radius ?? 14) * scale }
+  }
+
   // 1. 构建包含树
   const tree = buildContainmentTree(data.nodes, data.relations, relationConfigs)
 
@@ -172,7 +180,7 @@ export function runForceLayout(
   const containerRadii = new Map<string, number>()
   function calcAllRadii(nodes: TreeNode[]) {
     for (const tn of nodes) {
-      containerRadii.set(tn.uuid, calcTreeRadius(tn, nodeConfigs))
+      containerRadii.set(tn.uuid, calcTreeRadius(tn, scaledNodeConfigs))
       calcAllRadii(tn.children)
     }
   }
@@ -205,7 +213,7 @@ export function runForceLayout(
   // 4. 创建力布局节点
   const fNodes: FNode[] = data.nodes.map(n => {
     const anchor = project(n.lng, n.lat)
-    const cfg = nodeConfigs[n.type_id]
+    const cfg = scaledNodeConfigs[n.type_id]
     const r = cfg?.radius ?? 14
     const cR = containerRadii.get(n.uuid) || 0
     // 找对应的树节点

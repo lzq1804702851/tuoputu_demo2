@@ -11,6 +11,7 @@
       :map-zoom="0.3"
       :node-labels="['ip', 'speed']"
       :force-config="forceConfig"
+      :node-scale="nodeScale"
     />
 
     <!-- 力布局参数调节面板 -->
@@ -65,6 +66,15 @@
         </div>
       </div>
     </div>
+
+    <!-- 节点大小缩放（独立控件） -->
+    <div class="scale-panel">
+      <div class="scale-header">
+        <span>🔍 节点大小</span>
+        <span class="scale-val">{{ nodeScale }}x</span>
+      </div>
+      <input type="range" class="scale-slider" v-model.number="nodeScale" min="0.2" max="5" step="0.1" />
+    </div>
   </div>
 </template>
 
@@ -75,6 +85,7 @@ import type { NodeTypeConfig, RelationTypeConfig, ForceConfig } from 'topology-g
 import { mockData } from './mock-data'
 
 const panelCollapsed = ref(true)
+const nodeScale = ref(1)
 
 const defaultForceConfig: ForceConfig = {
   anchorStrength: 0.95,
@@ -91,6 +102,7 @@ const forceConfig = reactive<ForceConfig>({ ...defaultForceConfig })
 
 function resetDefaults() {
   Object.assign(forceConfig, { ...defaultForceConfig })
+  nodeScale.value = 1
 }
 
 const nodeTypeConfig: Record<string, NodeTypeConfig> = {
@@ -212,6 +224,10 @@ html, body, #app { width: 100%; height: 100%; margin: 0; padding: 0; overflow: h
   font-size: 10px;
   margin-top: 2px;
 }
+.panel-sep {
+  border-top: 1px solid #1e3a5f;
+  margin: 12px 0;
+}
 .panel-actions {
   margin-top: 10px;
   display: flex;
@@ -232,5 +248,59 @@ html, body, #app { width: 100%; height: 100%; margin: 0; padding: 0; overflow: h
 .reset-btn:hover {
   background: #38bdf8;
   color: #0f172a;
+}
+
+/* 节点大小缩放（独立浮窗） */
+.scale-panel {
+  position: absolute;
+  top: 56px;
+  right: 200px;
+  width: 180px;
+  background: #0f172aee;
+  border: 1px solid #1e3a5f;
+  border-radius: 10px;
+  padding: 10px 14px 12px;
+  z-index: 20;
+  font-family: "Microsoft YaHei", sans-serif;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+}
+.scale-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #38bdf8;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.scale-val {
+  color: #38bdf8;
+  font-weight: 600;
+  font-family: monospace;
+  font-size: 13px;
+}
+.scale-slider {
+  width: 100%;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #1e3a5f;
+  border-radius: 2px;
+  outline: none;
+}
+.scale-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #38bdf8;
+  cursor: pointer;
+  border: 2px solid #0f172a;
+  box-shadow: 0 0 4px rgba(56,189,248,0.5);
+}
+.scale-slider::-webkit-slider-thumb:hover {
+  background: #7dd3fc;
 }
 </style>
